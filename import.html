@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Importer ukestall</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 700px;
+            margin: 40px auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+
+        h1 {
+            margin-bottom: 10px;
+        }
+
+        .section {
+            margin-bottom: 30px;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+        }
+
+        input[type="file"] {
+            margin-top: 10px;
+        }
+
+        #preview {
+            white-space: pre-wrap;
+            background: #f7f7f7;
+            padding: 15px;
+            border-radius: 6px;
+            border: 1px solid #ddd;
+            margin-top: 10px;
+            font-family: monospace;
+            font-size: 14px;
+        }
+
+        button {
+            padding: 10px 16px;
+            font-size: 15px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+        }
+
+        .primary {
+            background: #0070f3;
+            color: white;
+        }
+
+        .disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Importer ukestall</h1>
+    <p>Last opp en JSON‑fil med ukestall. Filen blir validert og vist før lagring.</p>
+
+    <div class="section">
+        <h2>1. Last opp fil</h2>
+        <input type="file" id="fileInput" accept=".json">
+    </div>
+
+    <div class="section">
+        <h2>2. Forhåndsvisning</h2>
+        <div id="preview">Ingen fil lastet opp ennå.</div>
+    </div>
+
+    <div class="section">
+        <h2>3. Lagre til /data/</h2>
+        <button id="saveBtn" class="primary disabled" disabled>Lagre fil</button>
+    </div>
+
+    <script>
+        // Her kommer funksjonaliteten i neste steg
+    </script>
+
+</body>
+</html>
