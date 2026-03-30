@@ -84,3 +84,31 @@
 
 </body>
 </html>
+const fileInput = document.getElementById("fileInput");
+const preview = document.getElementById("preview");
+const saveBtn = document.getElementById("saveBtn");
+
+fileInput.addEventListener("change", () => {
+    const file = fileInput.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+
+    reader.onload = (event) => {
+        try {
+            const json = JSON.parse(event.target.result);
+            preview.textContent = JSON.stringify(json, null, 2);
+
+            // Aktiver lagre-knappen
+            saveBtn.disabled = false;
+            saveBtn.classList.remove("disabled");
+
+        } catch (err) {
+            preview.textContent = "Filen er ikke gyldig JSON.";
+            saveBtn.disabled = true;
+            saveBtn.classList.add("disabled");
+        }
+    };
+
+    reader.readAsText(file);
+});
