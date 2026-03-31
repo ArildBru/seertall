@@ -112,3 +112,37 @@ fileInput.addEventListener("change", () => {
 
     reader.readAsText(file);
 });
+saveBtn.addEventListener("click", async () => {
+    const file = fileInput.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+
+    reader.onload = async (event) => {
+        try {
+            const json = JSON.parse(event.target.result);
+
+            const response = await fetch("/api/save", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    filename: file.name,
+                    content: json
+                })
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                alert("Filen ble lagret!");
+            } else {
+                alert("Kunne ikke lagre filen.");
+            }
+
+        } catch (err) {
+            alert("JSON-feil, kunne ikke lagre.");
+        }
+    };
+
+    reader.readAsText(file);
+});
