@@ -1,1 +1,6 @@
-{ "test": true }
+{
+  "test": "hei verden",
+  "uke": 12,
+  "dato": "2024-03-01"
+}
+
