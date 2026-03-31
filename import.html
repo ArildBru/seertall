@@ -113,6 +113,21 @@ fileInput.addEventListener("change", () => {
 });
 
 saveBtn.addEventListener("click", async () => {
-    // lagringskoden her
+    const json = JSON.parse(preview.textContent);
+
+    const response = await fetch("/api/save", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(json)
+    });
+
+    const result = await response.json();
+
+    if (result.success) {
+        alert(`Lagret som ${result.file}`);
+    } else {
+        alert("Kunne ikke lagre filen.");
+    }
 });
+
 </script>
