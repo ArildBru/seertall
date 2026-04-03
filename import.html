@@ -4,8 +4,10 @@
   <meta charset="UTF-8" />
   <title>Seertall – Import</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+
   <!-- SheetJS for å lese Excel -->
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
   <style>
     body { font-family: system-ui, -apple-system, sans-serif; margin: 2rem; background:#f7f7f7; }
     h1 { margin-bottom: 0.5rem; }
@@ -14,301 +16,141 @@
     input[type="number"], input[type="file"] {
       width: 100%; max-width: 240px; padding:0.4rem 0.6rem; border-radius:4px; border:1px solid #ccc;
     }
-    button { padding:0.4rem 0.9rem; border-radius:4px; border:none; background:#111827; color:#fff; cursor:pointer; }
-    button:disabled { background:#9ca3af; cursor:default; }
     .status-item { background:#fff; border-radius:6px; padding:0.75rem 1rem; border:1px solid #e5e7eb; margin-bottom:0.5rem; }
     .ok { color:#16a34a; font-weight:600; }
     .error { color:#b91c1c; font-weight:600; }
     .meta { color:#4b5563; font-size:0.9rem; }
   </style>
-</head><script>
-  const weekInput = document.getElementById("weekInput");
-  const weekStatus = document.getElementById("weekStatus");
-  const fileInput = document.getElementById("fileInput");
-
-  let selectedWeek = null;
-
-  // Når uke velges
-  weekInput.addEventListener("input", () => {
-    selectedWeek = parseInt(weekInput.value);
-    if (selectedWeek >= 1 && selectedWeek <= 53) {
-      weekStatus.textContent = `Uke ${selectedWeek} er valgt.`;
-    } else {
-      weekStatus.textContent = "Ugyldig uke.";
-    }
-  });
-
-  // Legg til statuslinje
-  function addStatus(message, isError = false) {
-    const container = document.getElementById("statusList");
-    if (!container) return;
-
-    const div = document.createElement("div");
-    div.className = "status-item";
-    div.innerHTML = `
-      <span class="${isError ? "error" : "ok"}">${isError ? "Feil" : "OK"}:</span>
-      ${message}
-    `;
-    container.appendChild(div);
-  }
-
-  // Når fil lastes opp
-  fileInput.addEventListener("change", async (event) => {
-    const file = event.target.files[0];
-    if (!file) return;
-
-    if (!selectedWeek) {
-      addStatus("Du må velge uke før du laster opp fil.", true);
-      return;
-    }
-
-    try {
-      const data = await file.arrayBuffer();
-      const workbook = XLSX.read(data);
-      const sheet = workbook.Sheets[workbook.SheetNames[0]];
-      const rows = XLSX.utils.sheet_to_json(sheet);
-
-      if (rows.length === 0) {
-        addStatus(`Filen ${file.name} inneholder ingen rader.`, true);
-        return;
-      }
-
-      // Finn kolonnenavn
-      const keys = Object.keys(rows[0]).map(k => k.toLowerCase());
-      const mediehusKey = keys.find(k => k.includes("mediehus"));
-      const tittelKey = keys.find(k => k.includes("tittel"));
-      const totaltKey = keys.find(k => k.includes("totalt"));
-
-      if (!mediehusKey || !tittelKey || !totaltKey) {
-        addStatus(`Klarte ikke å finne nødvendige kolonner i ${file.name}.`, true);
-        return;
-      }
-
-      // Gjenkjenn kanal
-      const kanal = rows[0][mediehusKey].toLowerCase();
-      let kanalSlug = null;
-
-      if (kanal.includes("nrk")) kanalSlug = "nrk";
-      else if (kanal.includes("tv 2") || kanal.includes("tv2")) kanalSlug = "tv2";
-      else if (kanal.includes("discovery")) kanalSlug = "discovery";
-      else if (kanal.includes("nent") || kanal.includes("viaplay")) kanalSlug = "nent";
-
-      if (!kanalSlug) {
-        addStatus(`Klarte ikke å gjenkjenne kanal i ${file.name}.`, true);
-        return;
-      }
-
-      // Bygg JSON
-      const jsonData = rows.map(r => ({
-        tittel: r[tittelKey],
-        seere: r[totaltKey],
-        mediehus: r[mediehusKey]
-      }));
-
-      const filename = `uke-${selectedWeek}-${kanalSlug}.json`;
-
-      // Send til API
-      const response = await fetch("/api/save-week-file", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ filename, data: jsonData })
-      });
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        addStatus(`Kunne ikke lagre ${filename}: ${result.error}`, true);
-        return;
-      }
-
-      addStatus(`Fil: ${file.name} → Kanal: ${kanalSlug.toUpperCase()} → Lagret som: ${filename}`);
-    } catch (err) {
-      addStatus(`Uventet feil ved lesing av ${file.name}: ${err.message}`, true);
-    }
-  });
-</script>
-
-<!-- Status-liste -->
-<div class="card">
-  <h3>Status for opplastede filer</h3>
-  <div id="statusList"></div>
-</div>
+</head>
 
 <body>
   <h1>Seertall – Import av ukesfiler</h1>
 
+  <!-- Ukevalg -->
   <div class="card">
     <label for="weekInput">Uke</label>
     <input id="weekInput" type="number" min="1" max="53" placeholder="f.eks. 13" />
     <p class="meta" id="weekStatus">Ingen uke valgt ennå.</p>
   </div>
 
+  <!-- Filopplasting -->
   <div class="card">
     <label for="fileInput">Last opp Excel-fil (NRK, TV 2, Discovery, NENT)</label>
     <input id="fileInput" type="file" accept=".xlsx,.xls" />
     <p class="meta">Systemet gjenkjenner kanal automatisk fra kolonnen «Mediehus».</p>
   </div>
 
+  <!-- Status -->
   <div class="card">
-    <h2>Status for opplastede filer</h2>
-    <div id="statusContainer">
-      <div class="status-item meta">Ingen filer lastet opp ennå.</div>
-    </div>
+    <h3>Status for opplastede filer</h3>
+    <div id="statusList"></div>
   </div>
 
+  <!-- JavaScript -->
   <script>
-    let currentWeek = null;
+    const weekInput = document.getElementById("weekInput");
+    const weekStatus = document.getElementById("weekStatus");
+    const fileInput = document.getElementById("fileInput");
 
-    const weekInput = document.getElementById('weekInput');
-    const weekStatus = document.getElementById('weekStatus');
-    const fileInput = document.getElementById('fileInput');
-    const statusContainer = document.getElementById('statusContainer');
+    let selectedWeek = null;
 
-    weekInput.addEventListener('change', () => {
-      const val = parseInt(weekInput.value, 10);
-      if (!val || val < 1 || val > 53) {
-        currentWeek = null;
-        weekStatus.textContent = 'Ugyldig ukenummer.';
-        weekStatus.className = 'meta error';
+    // Når uke velges
+    weekInput.addEventListener("input", () => {
+      selectedWeek = parseInt(weekInput.value);
+      if (selectedWeek >= 1 && selectedWeek <= 53) {
+        weekStatus.textContent = `Uke ${selectedWeek} er valgt.`;
       } else {
-        currentWeek = val;
-        weekStatus.textContent = `Uke ${currentWeek} er valgt.`;
-        weekStatus.className = 'meta';
+        weekStatus.textContent = "Ugyldig uke.";
       }
     });
 
-    fileInput.addEventListener('change', async (event) => {
+    // Legg til statuslinje
+    function addStatus(message, isError = false) {
+      const container = document.getElementById("statusList");
+      const div = document.createElement("div");
+      div.className = "status-item";
+      div.innerHTML = `
+        <span class="${isError ? "error" : "ok"}">${isError ? "Feil" : "OK"}:</span>
+        ${message}
+      `;
+      container.appendChild(div);
+    }
+
+    // Når fil lastes opp
+    fileInput.addEventListener("change", async (event) => {
       const file = event.target.files[0];
       if (!file) return;
-      if (!currentWeek) {
-        alert('Sett ukenummer før du laster opp filer.');
-        fileInput.value = '';
+
+      if (!selectedWeek) {
+        addStatus("Du må velge uke før du laster opp fil.", true);
         return;
       }
 
-      addStatus(`Leser fil: ${file.name} …`);
-
       try {
         const data = await file.arrayBuffer();
-        const workbook = XLSX.read(data, { type: 'array' });
-        const sheetName = workbook.SheetNames[0];
-        const sheet = workbook.Sheets[sheetName];
+        const workbook = XLSX.read(data);
+        const sheet = workbook.Sheets[workbook.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json(sheet);
 
-        // Konverter til JSON – SheetJS gjetter header-rad
-        const rows = XLSX.utils.sheet_to_json(sheet, { defval: null });
-
-        if (!rows.length) {
-          addStatus(`Ingen rader funnet i ${file.name}`, true);
-          fileInput.value = '';
+        if (rows.length === 0) {
+          addStatus(`Filen ${file.name} inneholder ingen rader.`, true);
           return;
         }
 
-        // Finn kolonnenavn (for sikkerhets skyld)
-        const sample = rows[0];
-        const mediehusKey = findKey(sample, ['Mediehus']);
-        const contentKey = findKey(sample, ['ContentID', 'Content Id', 'Content ID']);
-        const tittelKey = findKey(sample, ['Tittel', 'Title']);
-        const undertittelKey = findKey(sample, ['Undertittel', 'Subtittel', 'Subtitle']);
-        const sesongKey = findKey(sample, ['Sesong', 'Season']);
-        const episodeKey = findKey(sample, ['Episode', 'Episodenr']);
-        const lengdeKey = findKey(sample, ['Lengde', 'Varighet', 'Duration']);
-        const totaltKey = findKey(sample, ['Totalt', 'Total']);
-        const lineartKey = findKey(sample, ['Lineært', 'Lineart', 'Linear']);
-        const vodKey = findKey(sample, ['VOD', 'Vod']);
+        // Finn kolonnenavn
+        const keys = Object.keys(rows[0]).map(k => k.toLowerCase());
+        const mediehusKey = keys.find(k => k.includes("mediehus"));
+        const tittelKey = keys.find(k => k.includes("tittel"));
+        const totaltKey = keys.find(k => k.includes("totalt"));
 
         if (!mediehusKey || !tittelKey || !totaltKey) {
-          addStatus(`Klarte ikke å finne nødvendige kolonner i ${file.name}`, true);
-          fileInput.value = '';
+          addStatus(`Klarte ikke å finne nødvendige kolonner i ${file.name}.`, true);
           return;
         }
 
-        // Gjenkjenn kanal fra første rad
-        const kanalRaw = (rows[0][mediehusKey] || '').toString().trim();
-        const kanalSlug = kanalToSlug(kanalRaw);
+        // Gjenkjenn kanal
+        const kanal = rows[0][mediehusKey].toLowerCase();
+        let kanalSlug = null;
+
+        if (kanal.includes("nrk")) kanalSlug = "nrk";
+        else if (kanal.includes("tv 2") || kanal.includes("tv2")) kanalSlug = "tv2";
+        else if (kanal.includes("discovery")) kanalSlug = "discovery";
+        else if (kanal.includes("nent") || kanal.includes("viaplay")) kanalSlug = "nent";
+
         if (!kanalSlug) {
-          addStatus(`Ukjent kanal i ${file.name}: «${kanalRaw}»`, true);
-          fileInput.value = '';
+          addStatus(`Klarte ikke å gjenkjenne kanal i ${file.name}.`, true);
           return;
         }
 
-        const programmer = rows.map((row) => ({
-          mediehus: (row[mediehusKey] || '').toString().trim(),
-          contentID: row[contentKey] || null,
-          tittel: row[tittelKey] || null,
-          undertittel: row[undertittelKey] || null,
-          sesong: row[sesongKey] != null ? Number(row[sesongKey]) : null,
-          episode: row[episodeKey] != null ? Number(row[episodeKey]) : null,
-          lengde: row[lengdeKey] || null,
-          totalt: row[totaltKey] != null ? Number(row[totaltKey]) : null,
-          lineært: row[lineartKey] != null ? Number(row[lineartKey]) : null,
-          vod: row[vodKey] != null ? Number(row[vodKey]) : null
+        // Bygg JSON
+        const jsonData = rows.map(r => ({
+          tittel: r[tittelKey],
+          seere: r[totaltKey],
+          mediehus: r[mediehusKey]
         }));
 
-        const payload = {
-          uke: currentWeek,
-          kanal: kanalSlug.toUpperCase(),
-          programmer
-        };
+        const filename = `uke-${selectedWeek}-${kanalSlug}.json`;
 
-        const filename = `uke-${currentWeek}-${kanalSlug}.json`;
-
-        // Tilpass URL til din API-route som lagrer til GitHub
-        const res = await fetch('/api/save-week-file', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ filename, data: payload })
+        // Send til API
+        const response = await fetch("/api/save-week-file", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ filename, data: jsonData })
         });
 
-        if (!res.ok) {
-          throw new Error(`Feil fra server: ${res.status}`);
+        const result = await response.json();
+
+        if (!response.ok) {
+          addStatus(`Kunne ikke lagre ${filename}: ${result.error}`, true);
+          return;
         }
 
-        addStatus(
-          `Fil: ${file.name} → Kanal: ${payload.kanal} → Programmer: ${programmer.length} → Lagret som: ${filename} ✔`
-        );
+        addStatus(`Fil: ${file.name} → Kanal: ${kanalSlug.toUpperCase()} → Lagret som: ${filename}`);
       } catch (err) {
-        console.error(err);
-        addStatus(`Feil ved behandling av ${file.name}: ${err.message}`, true);
-      } finally {
-        fileInput.value = '';
+        addStatus(`Uventet feil ved lesing av ${file.name}: ${err.message}`, true);
       }
     });
-
-    function addStatus(message, isError = false) {
-      if (statusContainer.firstChild && statusContainer.firstChild.classList.contains('meta') &&
-          statusContainer.firstChild.textContent.includes('Ingen filer')) {
-        statusContainer.innerHTML = '';
-      }
-      const div = document.createElement('div');
-      div.className = 'status-item';
-      if (isError) {
-        div.innerHTML = `<span class="error">Feil:</span> <span class="meta">${message}</span>`;
-      } else {
-        div.innerHTML = `<span class="ok">OK:</span> <span class="meta">${message}</span>`;
-      }
-      statusContainer.prepend(div);
-    }
-
-    function findKey(obj, candidates) {
-      const keys = Object.keys(obj || {});
-      for (const cand of candidates) {
-        const found = keys.find(
-          (k) => k.toLowerCase().trim() === cand.toLowerCase().trim()
-        );
-        if (found) return found;
-      }
-      return null;
-    }
-
-    function kanalToSlug(mediehus) {
-      const v = mediehus.toLowerCase();
-      if (v.includes('nrk')) return 'nrk';
-      if (v.includes('tv 2') || v === 'tv2') return 'tv2';
-      if (v.includes('discovery')) return 'discovery';
-      if (v.includes('nent')) return 'nent';
-      return null;
-    }
   </script>
+
 </body>
 </html>
-
