@@ -73,3 +73,102 @@
         <span class="${isError ? "error" : "ok"}">${isError ? "Feil" : "OK"}:</span>
         ${message}
       `;
+      container.appendChild(div);
+    }
+
+    // Når fil lastes opp
+    fileInput.addEventListener("change", async (event) => {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      if (!selectedWeek) {
+        addStatus("Du må velge uke før du laster opp fil.", true);
+        return;
+      }
+
+      try {
+        const data = await file.arrayBuffer();
+        const workbook = XLSX.read(data);
+        const sheet = workbook.Sheets[workbook.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json(sheet);
+
+        if (rows.length === 0) {
+          addStatus(`Filen ${file.name} inneholder ingen rader.`, true);
+          return;
+        }
+
+        // Debug: se hva SheetJS faktisk kaller kolonnene
+        console.log("Kolonner funnet:", Object.keys(rows[0]));
+
+        // Rens headerne for skjulte tegn
+        const rawKeys = Object.keys(rows[0]);
+        const keys = rawKeys.map(k =>
+          k.toLowerCase().trim().replace(/\u00a0/g, " ")
+        );
+
+        const mediehusKey = keys.find(k => k.replace(/\s+/g, "").includes("mediehus"));
+        const tittelKey = keys.find(k => k.includes("tittel"));
+        const totaltKey = keys.find(k => k.includes("totalt"));
+
+        if (!mediehusKey || !tittelKey || !totaltKey) {
+          addStatus(`Klarte ikke å finne nødvendige kolonner i ${file.name}.`, true);
+          return;
+        }
+
+        // Finn originalt kolonnenavn (etter rensing)
+        const mediehusCol = rawKeys[keys.indexOf(mediehusKey)];
+        const tittelCol = rawKeys[keys.indexOf(tittelKey)];
+        const totaltCol = rawKeys[keys.indexOf(totaltKey)];
+
+        // Gjenkjenn kanal
+        const kanalRaw = rows[0][mediehusCol];
+        if (!kanalRaw) {
+          addStatus("Fant ikke kanalverdi i første rad.", true);
+          return;
+        }
+
+        const kanalLower = kanalRaw.toString().toLowerCase();
+        let kanalSlug = null;
+
+        if (kanalLower.includes("nrk")) kanalSlug = "nrk";
+        else if (kanalLower.includes("tv 2") || kanalLower.includes("tv2")) kanalSlug = "tv2";
+        else if (kanalLower.includes("discovery")) kanalSlug = "discovery";
+        else if (kanalLower.includes("nent") || kanalLower.includes("viaplay")) kanalSlug = "nent";
+
+        if (!kanalSlug) {
+          addStatus(`Klarte ikke å gjenkjenne kanal i ${file.name}.`, true);
+          return;
+        }
+
+        // Bygg JSON
+        const jsonData = rows.map(r => ({
+          tittel: r[tittelCol],
+          seere: r[totaltCol],
+          mediehus: r[mediehusCol]
+        }));
+
+        const filename = `uke-${selectedWeek}-${kanalSlug}.json`;
+
+        // Send til API
+        const response = await fetch("/api/save-week-file", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ filename, data: jsonData })
+        });
+
+        const result = await response.json();
+
+        if (!response.ok) {
+          addStatus(`Kunne ikke lagre ${filename}: ${result.error}`, true);
+          return;
+        }
+
+        addStatus(`Fil: ${file.name} → Kanal: ${kanalSlug.toUpperCase()} → Lagret som: ${filename}`);
+      } catch (err) {
+        addStatus(`Uventet feil ved lesing av ${file.name}: ${err.message}`, true);
+      }
+    });
+  </script>
+
+</body>
+</html>
