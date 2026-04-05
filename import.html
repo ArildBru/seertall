@@ -91,6 +91,7 @@
         const workbook = XLSX.read(data);
         const sheet = workbook.Sheets[workbook.SheetNames[0]];
         const rows = XLSX.utils.sheet_to_json(sheet);
+        console.log("Kolonner funnet:", Object.keys(rows[0]));
 
         if (rows.length === 0) {
           addStatus(`Filen ${file.name} inneholder ingen rader.`, true);
@@ -98,8 +99,16 @@
         }
 
         // Finn kolonnenavn
-        const keys = Object.keys(rows[0]).map(k => k.toLowerCase());
-        const mediehusKey = keys.find(k => k.includes("mediehus"));
+        const keys = Object.keys(rows[0]).map(k =>
+k
+    .toLowerCase()
+    .trim()
+    .replace(/\u00a0/g, " ") // fjern non-breaking spaces);
+
+        const mediehusKey = keys.find(k =>
+  k.replace(/\s+/g, "").includes("mediehus")
+);
+
         const tittelKey = keys.find(k => k.includes("tittel"));
         const totaltKey = keys.find(k => k.includes("totalt"));
 
