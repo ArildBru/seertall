@@ -73,36 +73,3 @@
         <span class="${isError ? "error" : "ok"}">${isError ? "Feil" : "OK"}:</span>
         ${message}
       `;
-      container.appendChild(div);
-    }
-
-    // Når fil lastes opp
-    fileInput.addEventListener("change", async (event) => {
-      const file = event.target.files[0];
-      if (!file) return;
-
-      if (!selectedWeek) {
-        addStatus("Du må velge uke før du laster opp fil.", true);
-        return;
-      }
-
-      try {
-        const data = await file.arrayBuffer();
-        const workbook = XLSX.read(data);
-        const sheet = workbook.Sheets[workbook.SheetNames[0]];
-        const rows = XLSX.utils.sheet_to_json(sheet);
-
-        if (rows.length === 0) {
-          addStatus(`Filen ${file.name} inneholder ingen rader.`, true);
-          return;
-        }
-
-        // Debug: se hva SheetJS faktisk kaller kolonnene
-        console.log("Kolonner funnet:", Object.keys(rows[0]));
-
-        // Rens headerne for skjulte tegn
-        const keys = Object.keys(rows[0]).map(k =>
-          k.toLowerCase().trim().replace(/\u00a0/g, " ")
-        );
-
-        const
