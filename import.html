@@ -91,75 +91,18 @@
         const workbook = XLSX.read(data);
         const sheet = workbook.Sheets[workbook.SheetNames[0]];
         const rows = XLSX.utils.sheet_to_json(sheet);
-        console.log("Kolonner funnet:", Object.keys(rows[0]));
 
         if (rows.length === 0) {
           addStatus(`Filen ${file.name} inneholder ingen rader.`, true);
           return;
         }
 
-        // Finn kolonnenavn
+        // Debug: se hva SheetJS faktisk kaller kolonnene
+        console.log("Kolonner funnet:", Object.keys(rows[0]));
+
+        // Rens headerne for skjulte tegn
         const keys = Object.keys(rows[0]).map(k =>
-k
-    .toLowerCase()
-    .trim()
-    .replace(/\u00a0/g, " ") // fjern non-breaking spaces);
+          k.toLowerCase().trim().replace(/\u00a0/g, " ")
+        );
 
-        const mediehusKey = keys.find(k =>
-  k.replace(/\s+/g, "").includes("mediehus")
-);
-
-        const tittelKey = keys.find(k => k.includes("tittel"));
-        const totaltKey = keys.find(k => k.includes("totalt"));
-
-        if (!mediehusKey || !tittelKey || !totaltKey) {
-          addStatus(`Klarte ikke å finne nødvendige kolonner i ${file.name}.`, true);
-          return;
-        }
-
-        // Gjenkjenn kanal
-        const kanal = rows[0][mediehusKey].toLowerCase();
-        let kanalSlug = null;
-
-        if (kanal.includes("nrk")) kanalSlug = "nrk";
-        else if (kanal.includes("tv 2") || kanal.includes("tv2")) kanalSlug = "tv2";
-        else if (kanal.includes("discovery")) kanalSlug = "discovery";
-        else if (kanal.includes("nent") || kanal.includes("viaplay")) kanalSlug = "nent";
-
-        if (!kanalSlug) {
-          addStatus(`Klarte ikke å gjenkjenne kanal i ${file.name}.`, true);
-          return;
-        }
-
-        // Bygg JSON
-        const jsonData = rows.map(r => ({
-          tittel: r[tittelKey],
-          seere: r[totaltKey],
-          mediehus: r[mediehusKey]
-        }));
-
-        const filename = `uke-${selectedWeek}-${kanalSlug}.json`;
-
-        // Send til API
-        const response = await fetch("/api/save-week-file", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ filename, data: jsonData })
-        });
-
-        const result = await response.json();
-
-        if (!response.ok) {
-          addStatus(`Kunne ikke lagre ${filename}: ${result.error}`, true);
-          return;
-        }
-
-        addStatus(`Fil: ${file.name} → Kanal: ${kanalSlug.toUpperCase()} → Lagret som: ${filename}`);
-      } catch (err) {
-        addStatus(`Uventet feil ved lesing av ${file.name}: ${err.message}`, true);
-      }
-    });
-  </script>
-
-</body>
-</html>
+        const
