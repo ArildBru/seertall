@@ -10,44 +10,55 @@ export default async function handler(req, res) {
   try {
     const { question, week, channel } = req.body || {};
 
-    // 1) Finn alle uke-JSON-filer
-    const baseDir = process.cwd(); // juster hvis du flytter filene
-    const allFiles = fs.readdirSync(baseDir);
+    // 1) Hvor JSON-filene ligger
+    const baseDir = path.join(process.cwd(), "data", "weeks");
 
+    if (!fs.existsSync(baseDir)) {
+      return res.status(500).json({
+        error: "Data directory not found",
+        expectedPath: baseDir
+      });
+    }
+
+    // 2) Finn alle uke-*.json filer
+    const allFiles = fs.readdirSync(baseDir);
     const weekFiles = allFiles.filter((file) =>
       /^uke-\d+.*\.json$/i.test(file)
     );
 
     let allRecords = [];
 
+    // 3) Les alle JSON-filene
     for (const file of weekFiles) {
       const fullPath = path.join(baseDir, file);
       const raw = fs.readFileSync(fullPath, "utf8");
-      const json = JSON.parse(raw);
 
-      // antar at hver fil er en array med rader
-      if (Array.isArray(json)) {
-        allRecords = allRecords.concat(json);
-      } else {
-        // hvis det er et objekt med f.eks. { data: [...] }
-        if (Array.isArray(json.data)) {
+      try {
+        const json = JSON.parse(raw);
+
+        // Hvis filen er en array
+        if (Array.isArray(json)) {
+          allRecords = allRecords.concat(json);
+        }
+        // Hvis filen er et objekt med data: [...]
+        else if (Array.isArray(json.data)) {
           allRecords = allRecords.concat(json.data);
         }
+      } catch (err) {
+        console.error("JSON parse error in file:", file, err);
       }
     }
 
-    // 2) Enkel filtrering (uke / kanal) før AI
+    // 4) Filtrering (uke og kanal)
     let filtered = allRecords;
 
     if (week) {
       const weekStr = String(week);
       filtered = filtered.filter((row) => {
-        // du kan tilpasse dette til hvordan uke lagres
-        return (
-          row.uke === weekStr ||
-          row.uke === Number(weekStr) ||
-          (row.Uke && String(row.Uke) === weekStr)
-        );
+        const ukeValue =
+          row.uke || row.Uke || row.week || row.Week || null;
+
+        return ukeValue && String(ukeValue) === weekStr;
       });
     }
 
@@ -59,16 +70,20 @@ export default async function handler(req, res) {
       });
     }
 
-    // 3) Foreløpig: bare returner data + litt meta
+    // 5) Foreløpig returnerer vi bare data — AI kommer i neste steg
     return res.status(200).json({
       ok: true,
       question: question || null,
       totalRecords: allRecords.length,
       filteredRecords: filtered.length,
-      sample: filtered.slice(0, 10), // liten smakebit
+      sample: filtered.slice(0, 10)
     });
+
   } catch (err) {
     console.error("AI-query error:", err);
-    return res.status(500).json({ error: "AI-query failed", details: String(err) });
+    return res.status(500).json({
+      error: "AI-query failed",
+      details: String(err)
+    });
   }
 }
