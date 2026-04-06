@@ -57,13 +57,17 @@ export default async function handler(req, res) {
       }
     }
 
-    // 4) Filtrering på kanal (uke er allerede filtrert via filnavn)
+    // 4) Filtrering på kanal (robust matching)
     let filtered = allRecords;
 
     if (channel) {
-      const ch = String(channel).toLowerCase();
+      const ch = String(channel).toLowerCase().replace(/\s+/g, "");
+
       filtered = filtered.filter((row) => {
-        const mediehus = (row.Mediehus || row.mediehus || "").toLowerCase();
+        const mediehus = (row.Mediehus || row.mediehus || "")
+          .toLowerCase()
+          .replace(/\s+/g, "");
+
         return mediehus.includes(ch);
       });
     }
