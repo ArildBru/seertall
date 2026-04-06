@@ -10,8 +10,8 @@ export default async function handler(req, res) {
   try {
     const { question, week, channel } = req.body || {};
 
-    // 1) Hvor JSON-filene ligger
-    const baseDir = path.join(process.cwd(), "data" );
+    // 1) JSON-filene ligger i /data
+    const baseDir = path.join(process.cwd(), "data");
 
     if (!fs.existsSync(baseDir)) {
       return res.status(500).json({
