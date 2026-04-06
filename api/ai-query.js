@@ -20,15 +20,26 @@ export default async function handler(req, res) {
       });
     }
 
-    // 2) Finn alle uke-*.json filer
+    // 2) Finn filer som matcher uke-XX*.json
     const allFiles = fs.readdirSync(baseDir);
+    const weekPrefix = `uke-${week}`;
     const weekFiles = allFiles.filter((file) =>
-      /^uke-\d+.*\.json$/i.test(file)
+      file.toLowerCase().startsWith(weekPrefix)
     );
+
+    if (weekFiles.length === 0) {
+      return res.status(200).json({
+        ok: true,
+        message: `No files found for week ${week}`,
+        totalRecords: 0,
+        filteredRecords: 0,
+        sample: []
+      });
+    }
 
     let allRecords = [];
 
-    // 3) Les alle JSON-filene
+    // 3) Les alle JSON-filene for riktig uke
     for (const file of weekFiles) {
       const fullPath = path.join(baseDir, file);
       const raw = fs.readFileSync(fullPath, "utf8");
@@ -36,12 +47,9 @@ export default async function handler(req, res) {
       try {
         const json = JSON.parse(raw);
 
-        // Hvis filen er en array
         if (Array.isArray(json)) {
           allRecords = allRecords.concat(json);
-        }
-        // Hvis filen er et objekt med data: [...]
-        else if (Array.isArray(json.data)) {
+        } else if (Array.isArray(json.data)) {
           allRecords = allRecords.concat(json.data);
         }
       } catch (err) {
@@ -49,18 +57,8 @@ export default async function handler(req, res) {
       }
     }
 
-    // 4) Filtrering (uke og kanal)
+    // 4) Filtrering på kanal (uke er allerede filtrert via filnavn)
     let filtered = allRecords;
-
-    if (week) {
-      const weekStr = String(week);
-      filtered = filtered.filter((row) => {
-        const ukeValue =
-          row.uke || row.Uke || row.week || row.Week || null;
-
-        return ukeValue && String(ukeValue) === weekStr;
-      });
-    }
 
     if (channel) {
       const ch = String(channel).toLowerCase();
@@ -70,7 +68,7 @@ export default async function handler(req, res) {
       });
     }
 
-    // 5) Foreløpig returnerer vi bare data — AI kommer i neste steg
+    // 5) Returner resultatene
     return res.status(200).json({
       ok: true,
       question: question || null,
