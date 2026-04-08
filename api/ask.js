@@ -25,6 +25,7 @@ ${question}
           "api-key": API_KEY
         },
         body: JSON.stringify({
+          model: DEPLOYMENT,   // ⭐ Dette er den manglende linjen
           messages: [
             { role: "system", content: systemPrompt },
             { role: "user", content: userPrompt }
@@ -57,4 +58,3 @@ ${question}
     });
   }
 }
-
