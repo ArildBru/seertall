@@ -7,7 +7,7 @@ export default async function handler(req, res) {
     const DEPLOYMENT = process.env.AZURE_OPENAI_DEPLOYMENT;
 
     const systemPrompt = `
-Du er en ekspert på norske TV-seertall. Du analyserer utvikling, trender og sammenligninger basert på JSON-data.
+Du er en ekspert på norske TV-seertall. Du analyserer utvikling, trender og sammenligninger basert på data.
 Svar kort, presist og med tydelige konklusjoner.
     `;
 
@@ -25,7 +25,7 @@ ${question}
           "api-key": API_KEY
         },
         body: JSON.stringify({
-          model: DEPLOYMENT,   // ⭐ Dette er den manglende linjen
+          model: DEPLOYMENT,
           messages: [
             { role: "system", content: systemPrompt },
             { role: "user", content: userPrompt }
