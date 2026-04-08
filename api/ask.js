@@ -38,10 +38,13 @@ ${question}
     const data = await response.json();
 
     if (!response.ok) {
-      return res.status(500).json({
-        error: "Azure OpenAI request failed",
-        details: data
-      });
+      console.error("AZURE ERROR:", JSON.stringify(data, null, 2));
+
+return res.status(500).json({
+  error: "Azure OpenAI request failed",
+  details: data
+});
+
     }
 
     const answer = data.choices?.[0]?.message?.content || "Ingen respons fra modellen.";
