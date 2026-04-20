@@ -4,7 +4,7 @@ export default async function handler(req, res) {
 
     const API_KEY = process.env.AZURE_OPENAI_API_KEY;
     const ENDPOINT = process.env.AZURE_OPENAI_ENDPOINT;
-    const DEPLOYMENT = process.env.AZURE_OPENAI_DEPLOYMENT;
+    const DEPLOYMENT = process.env.AZURE_OPENAI_DEPLOYMENT_NAME;
 
     const systemPrompt = `
 Du er en ekspert på norske TV-seertall. Du analyserer utvikling, trender og sammenligninger basert på data.
@@ -25,7 +25,6 @@ ${question}
           "api-key": API_KEY
         },
         body: JSON.stringify({
-          model: DEPLOYMENT,
           messages: [
             { role: "system", content: systemPrompt },
             { role: "user", content: userPrompt }
@@ -39,12 +38,10 @@ ${question}
 
     if (!response.ok) {
       console.error("AZURE ERROR:", JSON.stringify(data, null, 2));
-
-return res.status(500).json({
-  error: "Azure OpenAI request failed",
-  details: data
-});
-
+      return res.status(500).json({
+        error: "Azure OpenAI request failed",
+        details: data
+      });
     }
 
     const answer = data.choices?.[0]?.message?.content || "Ingen respons fra modellen.";
