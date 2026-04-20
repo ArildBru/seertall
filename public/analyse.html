@@ -10,3 +10,8 @@ async function loadWeek(week, channel) {
   // - lage topplister
   // - filtrere på program
 }
+document.getElementById("loadButton").addEventListener("click", () => {
+  const week = document.getElementById("weekInput").value;
+  const channel = document.getElementById("channelSelect").value;
+  loadWeek(week, channel);
+});
