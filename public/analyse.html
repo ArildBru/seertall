@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+  <meta charset="UTF-8">
+  <title>AI-analyse av seertall</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #f5f5f5;
+      margin: 0;
+      padding: 40px;
+      color: #222;
+    }
+
+    .container {
+      max-width: 700px;
+      margin: 0 auto;
+      background: white;
+      padding: 30px;
+      border-radius: 12px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+    }
+
+    h1 {
+      margin-top: 0;
+      font-size: 28px;
+      font-weight: 600;
+    }
+
+    textarea {
+      width: 100%;
+      height: 140px;
+      padding: 12px;
+      border-radius: 8px;
+      border: 1px solid #ccc;
+      font-size: 16px;
+      resize: vertical;
+      margin-bottom: 16px;
+    }
+
+    button {
+      background: #0050ff;
+      color: white;
+      border: none;
+      padding: 12px 22px;
+      border-radius: 8px;
+      font-size: 16px;
+      cursor: pointer;
+    }
+
+    button:disabled {
+      opacity: 0.6;
+      cursor: default;
+    }
+
+    .result {
+      margin-top: 24px;
+      padding: 18px;
+      background: #fafafa;
+      border-radius: 8px;
+      min-height: 40px;
+      white-space: pre-wrap;
+      line-height: 1.5;
+    }
+
+    .loading {
+      opacity: 0.6;
+      font-style: italic;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="container">
+    <h1>AI-analyse av seertall</h1>
+
+    <textarea id="question" placeholder="Hva vil du vite om seertallene?"></textarea>
+
+    <button id="askBtn">Analyser</button>
+
+    <div id="result" class="result"></div>
+  </div>
+
+  <script>
+    const btn = document.getElementById("askBtn");
+    const result = document.getElementById("result");
+
+    btn.addEventListener("click", async () => {
+      const question = document.getElementById("question").value.trim();
+      if (!question) return;
+
+      btn.disabled = true;
+      result.textContent = "Analyserer…";
+      result.classList.add("loading");
+
+      try {
+        const response = await fetch("/api/ask", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ question })
+        });
+
+        const data = await response.json();
+
+        if (data.ok) {
+          result.textContent = data.answer;
+        } else {
+          result.textContent = "Feil: " + (data.error || "Ukjent feil");
+        }
+
+      } catch (err) {
+        result.textContent = "Serverfeil: " + err.message;
+      }
+
+      btn.disabled = false;
+      result.classList.remove("loading");
+    });
+  </script>
+</body>
+</html>
