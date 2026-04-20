@@ -11,14 +11,12 @@
       background: #f9f9f9;
     }
     h1 { margin-bottom: 1rem; }
-    label { font-weight: 600; display: block; margin-top: 1rem; }
-    input, select, textarea {
+    textarea {
       width: 100%;
-      max-width: 300px;
+      max-width: 600px;
       padding: 0.5rem;
-      margin-top: 0.25rem;
-      border: 1px solid #ccc;
       border-radius: 4px;
+      border: 1px solid #ccc;
     }
     button {
       margin-top: 1rem;
@@ -30,7 +28,6 @@
       font-weight: 600;
       cursor: pointer;
     }
-    button:hover { background: #1e4fcf; }
     .card {
       background: white;
       padding: 1.5rem;
@@ -45,73 +42,58 @@
 
   <h1>Analyse</h1>
 
-  <!-- Ukevalg -->
   <div class="card">
-    <label for="weekInput">Uke</label>
-    <input id="weekInput" type="number" min="1" max="53" placeholder="f.eks. 16" />
-
-    <label for="channelSelect">Kanal</label>
-    <select id="channelSelect">
-      <option value="tv2">TV 2</option>
-      <option value="nrk">NRK</option>
-      <option value="discovery">Discovery</option>
-      <option value="nent">NENT</option>
-    </select>
-
-    <button id="loadButton">Last inn uke</button>
-
-    <p id="statusText" style="margin-top:1rem; color:#555;">Ingen data lastet ennå.</p>
+    <p id="statusText">Laster alle ukedata…</p>
   </div>
 
-  <!-- AI -->
   <div class="card">
     <h2>AI-analyse</h2>
-
     <textarea id="aiQuestion" placeholder="Still et spørsmål om seertallene…" style="height:120px;"></textarea>
-
     <button id="askAiBtn">Spør AI</button>
-
-    <div id="aiAnswer" style="margin-top:1rem; white-space:pre-wrap; color:#333;"></div>
+    <div id="aiAnswer" style="margin-top:1rem; white-space:pre-wrap;"></div>
   </div>
 
   <script>
-    let currentWeekData = null;
-    let currentWeek = null;
-    let currentChannel = null;
+    let allData = [];
 
-    async function loadWeek(week, channel) {
+    async function loadAllWeeks() {
       const status = document.getElementById("statusText");
-      status.textContent = "Laster data…";
+      status.textContent = "Henter liste over filer…";
 
-      const res = await fetch(`/api/get-week-file?week=${week}&channel=${channel}`);
-      if (!res.ok) {
-        status.textContent = "Fant ikke data for denne uken.";
+      const listRes = await fetch("/api/list-week-files");
+      const listJson = await listRes.json();
+
+      if (!listJson.ok) {
+        status.textContent = "Kunne ikke hente liste over filer.";
         return;
       }
 
-      const data = await res.json();
+      const files = listJson.files;
+      status.textContent = `Fant ${files.length} filer. Laster inn…`;
 
-      currentWeekData = data;
-      currentWeek = week;
-      currentChannel = channel;
+      const loaded = [];
 
-      status.textContent = `Lastet ${data.length} programmer.`;
-      console.log("Uke-data:", data);
+      for (const file of files) {
+        const res = await fetch(`/api/get-week-file?file=${file}`);
+        if (res.ok) {
+          const json = await res.json();
+          loaded.push({ file, data: json });
+        }
+      }
+
+      allData = loaded;
+      status.textContent = `Lastet ${loaded.length} datasett. Klar for spørsmål.`;
+      console.log("ALL DATA:", allData);
     }
 
-    document.getElementById("loadButton").addEventListener("click", () => {
-      const week = document.getElementById("weekInput").value;
-      const channel = document.getElementById("channelSelect").value;
-      loadWeek(week, channel);
-    });
+    loadAllWeeks();
 
-    // AI
     document.getElementById("askAiBtn").addEventListener("click", async () => {
       const question = document.getElementById("aiQuestion").value;
       const answerBox = document.getElementById("aiAnswer");
 
-      if (!currentWeekData) {
-        answerBox.textContent = "Last inn en uke først.";
+      if (allData.length === 0) {
+        answerBox.textContent = "Ingen data lastet ennå.";
         return;
       }
 
@@ -122,9 +104,7 @@
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           question,
-          week: currentWeek,
-          channel: currentChannel,
-          data: currentWeekData
+          allData
         })
       });
 
