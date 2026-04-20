@@ -107,4 +107,31 @@
 
     // AI
     document.getElementById("askAiBtn").addEventListener("click", async () => {
-      const question = document.getElement
+      const question = document.getElementById("aiQuestion").value;
+      const answerBox = document.getElementById("aiAnswer");
+
+      if (!currentWeekData) {
+        answerBox.textContent = "Last inn en uke først.";
+        return;
+      }
+
+      answerBox.textContent = "Analyserer…";
+
+      const response = await fetch("/api/ask", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          question,
+          week: currentWeek,
+          channel: currentChannel,
+          data: currentWeekData
+        })
+      });
+
+      const result = await response.json();
+      answerBox.textContent = result.answer || result.error;
+    });
+  </script>
+
+</body>
+</html>
