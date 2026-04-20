@@ -1,60 +1,60 @@
 export default async function handler(req, res) {
   try {
-    const { question } = req.body;
+    const { question, week, channel, data } = req.body;
 
-    const API_KEY = process.env.AZURE_OPENAI_API_KEY;
-    const ENDPOINT = process.env.AZURE_OPENAI_ENDPOINT;
-    const DEPLOYMENT = process.env.AZURE_OPENAI_DEPLOYMENT_NAME;
-
-    const systemPrompt = `
-Du er en ekspert på norske TV-seertall. Du analyserer utvikling, trender og sammenligninger basert på data.
-Svar kort, presist og med tydelige konklusjoner.
-    `;
-
-    const userPrompt = `
-Bruk seertallsdataene og svar på dette spørsmålet:
-${question}
-    `;
-
-    const response = await fetch(
-      `${ENDPOINT}/openai/deployments/${DEPLOYMENT}/chat/completions?api-version=2024-10-01-preview`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "api-key": API_KEY
-        },
-        body: JSON.stringify({
-          messages: [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: userPrompt }
-          ],
-          temperature: 0.2
-        })
-      }
-    );
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      console.error("AZURE ERROR:", JSON.stringify(data, null, 2));
-      return res.status(500).json({
-        error: "Azure OpenAI request failed",
-        details: data
-      });
+    if (!question) {
+      return res.status(400).json({ ok: false, error: "Missing question" });
     }
 
-    const answer = data.choices?.[0]?.message?.content || "Ingen respons fra modellen.";
+    // Bygg kontekst til AI
+    const context = `
+Du er en ekspert på norske TV-seertall.
+Du får ukedata fra ${channel.toUpperCase()} for uke ${week}.
+Dataene er en liste av programmer med feltene:
+- Tittel
+- Sesong
+- Episode
+- Totalt
+- Lineært
+- VOD
 
-    res.status(200).json({
-      ok: true,
-      answer
+Her er rådataene:
+${JSON.stringify(data, null, 2)}
+
+Oppgave:
+Svar på spørsmålet fra brukeren på en klar, presis og forståelig måte.
+Bruk tallene i datasettet.
+Gjør sammenligninger når relevant.
+Gi innsikt, trender og forklaringer.
+Skriv på norsk.
+`;
+
+    // Kall OpenAI / Azure OpenAI
+    const aiRes = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`
+      },
+      body: JSON.stringify({
+        model: "gpt-4o-mini",
+        messages: [
+          { role: "system", content: context },
+          { role: "user", content: question }
+        ],
+        temperature: 0.3
+      })
     });
 
-  } catch (error) {
-    res.status(500).json({
-      error: "Server error",
-      details: error.message
-    });
+    const json = await aiRes.json();
+
+    const answer = json.choices?.[0]?.message?.content || "Ingen respons fra AI.";
+
+    res.status(200).json({ ok: true, answer });
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ ok: false, error: "Server error" });
   }
 }
+
