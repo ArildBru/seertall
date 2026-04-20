@@ -1,35 +1,38 @@
 export default async function handler(req, res) {
   try {
-    const { question, week, channel, data } = req.body;
+    const { question, allData } = req.body;
 
     if (!question) {
       return res.status(400).json({ ok: false, error: "Missing question" });
     }
 
-    // Bygg kontekst til AI
     const context = `
 Du er en ekspert på norske TV-seertall.
-Du får ukedata fra ${channel.toUpperCase()} for uke ${week}.
-Dataene er en liste av programmer med feltene:
-- Tittel
-- Sesong
-- Episode
-- Totalt
-- Lineært
-- VOD
+Du får ALLE ukedata som er lastet opp i systemet.
+Dataene er strukturert slik:
+[
+  {
+    file: "uke-16-tv2.json",
+    data: [ { Tittel, Sesong, Episode, Totalt, Lineært, VOD }, ... ]
+  },
+  ...
+]
 
-Her er rådataene:
-${JSON.stringify(data, null, 2)}
+Bruk disse dataene til å svare på spørsmål.
+Du kan:
+- sammenligne kanaler
+- sammenligne uker
+- finne trender
+- lage topplister
+- lage pitch-tekster
+- analysere utvikling over tid
+- finne vinnere og tapere
 
-Oppgave:
-Svar på spørsmålet fra brukeren på en klar, presis og forståelig måte.
-Bruk tallene i datasettet.
-Gjør sammenligninger når relevant.
-Gi innsikt, trender og forklaringer.
-Skriv på norsk.
+Svar på norsk.
+Her er alle dataene:
+${JSON.stringify(allData, null, 2)}
 `;
 
-    // Kall OpenAI / Azure OpenAI
     const aiRes = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -47,14 +50,12 @@ Skriv på norsk.
     });
 
     const json = await aiRes.json();
-
     const answer = json.choices?.[0]?.message?.content || "Ingen respons fra AI.";
 
     res.status(200).json({ ok: true, answer });
 
   } catch (err) {
-    console.error(err);
+    console.error("Feil i ask:", err);
     res.status(500).json({ ok: false, error: "Server error" });
   }
 }
-

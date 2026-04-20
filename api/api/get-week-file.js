@@ -2,31 +2,26 @@ import { BlobServiceClient } from "@azure/storage-blob";
 
 export default async function handler(req, res) {
   try {
-    const { week, channel } = req.query;
+    const { file } = req.query;
 
-    if (!week || !channel) {
-      return res.status(400).json({ error: "Missing week or channel" });
+    if (!file) {
+      return res.status(400).json({ ok: false, error: "Missing file parameter" });
     }
 
-    const blobName = `uke-${week}-${channel}.json`;
+    const AZURE_CONNECTION_STRING = process.env.AZURE_STORAGE_CONNECTION_STRING;
+    const containerName = "weeks";
 
-    const blobService = BlobServiceClient.fromConnectionString(process.env.AZURE_STORAGE_CONNECTION_STRING);
-    const container = blobService.getContainerClient(process.env.AZURE_STORAGE_CONTAINER);
-    const blob = container.getBlobClient(blobName);
+    const blobServiceClient = BlobServiceClient.fromConnectionString(AZURE_CONNECTION_STRING);
+    const containerClient = blobServiceClient.getContainerClient(containerName);
+    const blobClient = containerClient.getBlobClient(file);
 
-    const exists = await blob.exists();
-    if (!exists) {
-      return res.status(404).json({ error: "File not found" });
-    }
-
-    const download = await blob.download();
+    const download = await blobClient.download();
     const content = await streamToString(download.readableStreamBody);
 
     res.status(200).json(JSON.parse(content));
-
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Server error" });
+    console.error("Feil i get-week-file:", err);
+    res.status(500).json({ ok: false, error: "Kunne ikke hente filen." });
   }
 }
 
