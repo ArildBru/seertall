@@ -32,7 +32,6 @@
       padding: 25px;
       border-radius: 12px;
       box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-      margin-bottom: 20px;
     }
 
     textarea {
@@ -83,11 +82,34 @@
   <h2>Analyse</h2>
 
   <div class="card">
-    <h3>AI‑analyse</h3>
-
     <textarea id="aiQuestion" placeholder="Skriv et spørsmål, f.eks. 'Hva var VOD‑tallene for Boksen i uke 15'"></textarea>
     <button id="askAiBtn">Spør AI</button>
 
     <div id="aiAnswer"></div>
   </div>
 
+</div>
+
+<script>
+let allData = {};
+
+async function loadAllData() {
+  const response = await fetch("/api/list-files");
+  const files = await response.json();
+
+  const datasets = [];
+
+  for (const file of files) {
+    const res = await fetch("/api/get-week-file?filename=" + file);
+    const json = await res.json();
+    datasets.push(...json.data);
+  }
+
+  allData = datasets;
+}
+
+document.getElementById("askAiBtn").addEventListener("click", async () => {
+  const question = document.getElementById("aiQuestion").value;
+  const answerBox = document.getElementById("aiAnswer");
+
+  answer
