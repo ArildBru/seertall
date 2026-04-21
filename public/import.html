@@ -2,173 +2,104 @@
 <html lang="no">
 <head>
   <meta charset="UTF-8" />
-  <title>Seertall – Import</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-
-  <!-- SheetJS for å lese Excel -->
-  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-
+  <title>Importer seertall</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <style>
-    body { font-family: system-ui, -apple-system, sans-serif; margin: 2rem; background:#f7f7f7; }
-    h1 { margin-bottom: 0.5rem; }
-    .card { background:#fff; border-radius:8px; padding:1.5rem; margin-bottom:1rem; box-shadow:0 1px 3px rgba(0,0,0,0.08); }
-    label { display:block; font-weight:600; margin-bottom:0.25rem; }
-    input[type="number"], input[type="file"] {
-      width: 100%; max-width: 240px; padding:0.4rem 0.6rem; border-radius:4px; border:1px solid #ccc;
-    }
-    .status-item { background:#fff; border-radius:6px; padding:0.75rem 1rem; border:1px solid #e5e7eb; margin-bottom:0.5rem; }
-    .ok { color:#16a34a; font-weight:600; }
-    .error { color:#b91c1c; font-weight:600; }
-    .meta { color:#4b5563; font-size:0.9rem; }
+    body { font-family: Arial, sans-serif; padding: 20px; }
+    #status { margin-top: 20px; font-weight: bold; }
   </style>
 </head>
-
 <body>
-  <h1>Seertall – Import av ukesfiler</h1>
 
-  <!-- Ukevalg -->
-  <div class="card">
-    <label for="weekInput">Uke</label>
-    <input id="weekInput" type="number" min="1" max="53" placeholder="f.eks. 13" />
-    <p class="meta" id="weekStatus">Ingen uke valgt ennå.</p>
-  </div>
+<h2>Importer seertall</h2>
 
-  <!-- Filopplasting -->
-  <div class="card">
-    <label for="fileInput">Last opp Excel-fil (NRK, TV 2, Discovery, NENT)</label>
-    <input id="fileInput" type="file" accept=".xlsx,.xls" />
-    <p class="meta">Systemet gjenkjenner kanal automatisk fra kolonnen «Mediehus».</p>
-  </div>
+<input type="file" id="fileInput" accept=".xlsx,.xls" />
+<button onclick="processFile()">Importer</button>
 
-  <!-- Status -->
-  <div class="card">
-    <h3>Status for opplastede filer</h3>
-    <div id="statusList"></div>
-  </div>
+<div id="status"></div>
 
-  <!-- JavaScript -->
-  <script>
-    const weekInput = document.getElementById("weekInput");
-    const weekStatus = document.getElementById("weekStatus");
-    const fileInput = document.getElementById("fileInput");
+<script>
+async function processFile() {
+  const file = document.getElementById("fileInput").files[0];
+  if (!file) {
+    document.getElementById("status").innerText = "Velg en fil først.";
+    return;
+  }
 
-    let selectedWeek = null;
+  document.getElementById("status").innerText = "Leser fil...";
 
-    // Når uke velges
-    weekInput.addEventListener("input", () => {
-      selectedWeek = parseInt(weekInput.value);
-      if (selectedWeek >= 1 && selectedWeek <= 53) {
-        weekStatus.textContent = `Uke ${selectedWeek} er valgt.`;
-      } else {
-        weekStatus.textContent = "Ugyldig uke.";
-      }
-    });
+  const reader = new FileReader();
+  reader.onload = async (e) => {
+    const data = new Uint8Array(e.target.result);
+    const workbook = XLSX.read(data, { type: "array" });
 
-    // Legg til statuslinje
-    function addStatus(message, isError = false) {
-      const container = document.getElementById("statusList");
-      const div = document.createElement("div");
-      div.className = "status-item";
-      div.innerHTML = `
-        <span class="${isError ? "error" : "ok"}">${isError ? "Feil" : "OK"}:</span>
-        ${message}
-      `;
-      container.appendChild(div);
+    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(sheet);
+
+    if (rows.length === 0) {
+      document.getElementById("status").innerText = "Filen inneholder ingen rader.";
+      return;
     }
 
-    // Når fil lastes opp
-    fileInput.addEventListener("change", async (event) => {
-      const file = event.target.files[0];
-      if (!file) return;
+    const keys = Object.keys(rows[0]).map(k => k.toLowerCase());
 
-      if (!selectedWeek) {
-        addStatus("Du må velge uke før du laster opp fil.", true);
-        return;
-      }
+    // Finn kolonner automatisk
+    const episodeKey = keys.find(k => k.includes("episode"));
+    const tittelKey = keys.find(k => k.includes("tittel"));
+    const lineartKey = keys.find(k => k.includes("lineær") || k.includes("linear"));
+    const vodKey = keys.find(k => k.includes("vod"));
+    const totaltKey = keys.find(k => k.includes("totalt"));
+    const mediehusKey = keys.find(k => k.includes("mediehus"));
 
-      try {
-        const data = await file.arrayBuffer();
-        const workbook = XLSX.read(data);
-        const sheet = workbook.Sheets[workbook.SheetNames[0]];
-        const rows = XLSX.utils.sheet_to_json(sheet);
+    if (!episodeKey || !tittelKey || !lineartKey || !vodKey || !totaltKey) {
+      document.getElementById("status").innerText =
+        "Fant ikke alle nødvendige kolonner (episode, tittel, lineært, VOD, totalt).";
+      return;
+    }
 
-        if (rows.length === 0) {
-          addStatus(`Filen ${file.name} inneholder ingen rader.`, true);
-          return;
-        }
+    // Bygg komplett JSON
+    const jsonData = rows.map(r => ({
+      episode: r[episodeKey],
+      tittel: r[tittelKey],
+      lineart: r[lineartKey],
+      vod: r[vodKey],
+      totalt: r[totaltKey],
+      seere: r[totaltKey], // hovedtallet AI bruker
+      mediehus: mediehusKey ? r[mediehusKey] : null
+    }));
 
-        // Debug: se hva SheetJS faktisk kaller kolonnene
-        console.log("Kolonner funnet:", Object.keys(rows[0]));
+    // Filnavn basert på uke
+    const weekMatch = file.name.match(/uke[-_ ]?(\d+)/i);
+    const weekNumber = weekMatch ? weekMatch[1] : "ukjent";
+    const filename = `uke-${weekNumber}.json`;
 
-        // Rens headerne for skjulte tegn
-        const rawKeys = Object.keys(rows[0]);
-        const keys = rawKeys.map(k =>
-          k.toLowerCase().trim().replace(/\u00a0/g, " ")
-        );
+    document.getElementById("status").innerText = "Lagrer i Azure...";
 
-        const mediehusKey = keys.find(k => k.replace(/\s+/g, "").includes("mediehus"));
-        const tittelKey = keys.find(k => k.includes("tittel"));
-        const totaltKey = keys.find(k => k.includes("totalt"));
-
-        if (!mediehusKey || !tittelKey || !totaltKey) {
-          addStatus(`Klarte ikke å finne nødvendige kolonner i ${file.name}.`, true);
-          return;
-        }
-
-        // Finn originalt kolonnenavn (etter rensing)
-        const mediehusCol = rawKeys[keys.indexOf(mediehusKey)];
-        const tittelCol = rawKeys[keys.indexOf(tittelKey)];
-        const totaltCol = rawKeys[keys.indexOf(totaltKey)];
-
-        // Gjenkjenn kanal
-        const kanalRaw = rows[0][mediehusCol];
-        if (!kanalRaw) {
-          addStatus("Fant ikke kanalverdi i første rad.", true);
-          return;
-        }
-
-        const kanalLower = kanalRaw.toString().toLowerCase();
-        let kanalSlug = null;
-
-        if (kanalLower.includes("nrk")) kanalSlug = "nrk";
-        else if (kanalLower.includes("tv 2") || kanalLower.includes("tv2")) kanalSlug = "tv2";
-        else if (kanalLower.includes("discovery")) kanalSlug = "discovery";
-        else if (kanalLower.includes("nent") || kanalLower.includes("viaplay")) kanalSlug = "nent";
-
-        if (!kanalSlug) {
-          addStatus(`Klarte ikke å gjenkjenne kanal i ${file.name}.`, true);
-          return;
-        }
-
-        // Bygg JSON
-        const jsonData = rows.map(r => ({
-          tittel: r[tittelCol],
-          seere: r[totaltCol],
-          mediehus: r[mediehusCol]
-        }));
-
-        const filename = `uke-${selectedWeek}-${kanalSlug}.json`;
-
-        // Send til API
-        const response = await fetch("/api/save-week-file", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ filename, data: jsonData })
-        });
-
-        const result = await response.json();
-
-        if (!response.ok) {
-          addStatus(`Kunne ikke lagre ${filename}: ${result.error}`, true);
-          return;
-        }
-
-        addStatus(`Fil: ${file.name} → Kanal: ${kanalSlug.toUpperCase()} → Lagret som: ${filename}`);
-      } catch (err) {
-        addStatus(`Uventet feil ved lesing av ${file.name}: ${err.message}`, true);
-      }
+    // Send til backend
+    const response = await fetch("/api/save-week-file", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        filename,
+        data: jsonData
+      })
     });
-  </script>
+
+    const result = await response.json();
+
+    if (result.ok) {
+      document.getElementById("status").innerText =
+        `Filen ble lagret som ${filename}`;
+    } else {
+      document.getElementById("status").innerText =
+        "Feil ved lagring: " + result.error;
+    }
+  };
+
+  reader.readAsArrayBuffer(file);
+}
+</script>
 
 </body>
 </html>
+
