@@ -4,25 +4,45 @@
   <meta charset="UTF-8" />
   <title>Importer seertall</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
   <style>
-    body { font-family: Arial, sans-serif; padding: 20px; }
+    body { font-family: Arial, sans-serif; padding: 30px; max-width: 600px; }
+    label { font-weight: bold; }
+    input, button { margin-top: 10px; }
     #status { margin-top: 20px; font-weight: bold; }
   </style>
 </head>
+
 <body>
 
 <h2>Importer seertall</h2>
 
+<label for="weekInput">Uke:</label><br>
+<input type="number" id="weekInput" min="1" max="53" placeholder="f.eks. 15" />
+
+<br><br>
+
+<label for="fileInput">Velg Excel-fil:</label><br>
 <input type="file" id="fileInput" accept=".xlsx,.xls" />
+
+<br><br>
+
 <button onclick="processFile()">Importer</button>
 
 <div id="status"></div>
 
 <script>
 async function processFile() {
+  const weekNumber = document.getElementById("weekInput").value;
   const file = document.getElementById("fileInput").files[0];
+
+  if (!weekNumber) {
+    document.getElementById("status").innerText = "Du må skrive inn uke.";
+    return;
+  }
+
   if (!file) {
-    document.getElementById("status").innerText = "Velg en fil først.";
+    document.getElementById("status").innerText = "Du må velge en Excel-fil.";
     return;
   }
 
@@ -43,7 +63,7 @@ async function processFile() {
 
     const keys = Object.keys(rows[0]).map(k => k.toLowerCase());
 
-    // Finn kolonner automatisk
+    // Automatisk kolonne-gjenkjenning
     const episodeKey = keys.find(k => k.includes("episode"));
     const tittelKey = keys.find(k => k.includes("tittel"));
     const lineartKey = keys.find(k => k.includes("lineær") || k.includes("linear"));
@@ -68,14 +88,10 @@ async function processFile() {
       mediehus: mediehusKey ? r[mediehusKey] : null
     }));
 
-    // Filnavn basert på uke
-    const weekMatch = file.name.match(/uke[-_ ]?(\d+)/i);
-    const weekNumber = weekMatch ? weekMatch[1] : "ukjent";
     const filename = `uke-${weekNumber}.json`;
 
     document.getElementById("status").innerText = "Lagrer i Azure...";
 
-    // Send til backend
     const response = await fetch("/api/save-week-file", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -102,4 +118,3 @@ async function processFile() {
 
 </body>
 </html>
-
