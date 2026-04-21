@@ -15,7 +15,7 @@ export default async function handler(req, res) {
     const context = `
 Du er en ekspert på norske TV-seertall.
 
-VIKTIG REGLER FOR DATAANALYSE:
+VIKTIG:
 - Hver rad i datasettet representerer én episode.
 - Ikke legg sammen seertall for flere episoder og presenter det som én sending.
 - Når et program har flere episoder i en uke:
