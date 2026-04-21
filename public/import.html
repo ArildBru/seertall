@@ -57,15 +57,21 @@ async function processFile() {
       return;
     }
 
-    const keys = Object.keys(rows[0]).map(k => k.toLowerCase().trim());
+    // NORMALISER ALLE KOLONNENAVN
+    const normalizedKeys = Object.fromEntries(
+      Object.keys(rows[0]).map(originalKey => [
+        originalKey.toLowerCase().trim(), // nøkkel vi søker på
+        originalKey // original Excel-kolonnen
+      ])
+    );
 
-    // Automatisk kolonne-gjenkjenning
-    const episodeKey = keys.find(k => k.includes("episode"));
-    const tittelKey = keys.find(k => k.includes("tittel"));
-    const lineartKey = keys.find(k => k.includes("lineær") || k.includes("linear"));
-    const vodKey = keys.find(k => k.includes("vod"));
-    const totaltKey = keys.find(k => k.includes("totalt"));
-    const mediehusKey = keys.find(k => k.includes("mediehus"));
+    // Finn riktige kolonner basert på normaliserte navn
+    const episodeKey = normalizedKeys["episode"];
+    const tittelKey = normalizedKeys["tittel"];
+    const lineartKey = normalizedKeys["lineært"] || normalizedKeys["lineart"] || normalizedKeys["linear"];
+    const vodKey = normalizedKeys["vod"];
+    const totaltKey = normalizedKeys["totalt"];
+    const mediehusKey = normalizedKeys["mediehus"];
 
     if (!episodeKey || !tittelKey || !lineartKey || !vodKey || !totaltKey) {
       document.getElementById("status").innerText =
@@ -73,7 +79,7 @@ async function processFile() {
       return;
     }
 
-    // Bygg komplett JSON
+    // Bygg komplett JSON med ORIGINALKEYS
     const jsonData = rows.map(r => ({
       episode: r[episodeKey],
       tittel: r[tittelKey],
