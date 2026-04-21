@@ -7,8 +7,8 @@
 
   <style>
     body { font-family: Arial, sans-serif; padding: 30px; max-width: 600px; }
-    label { font-weight: bold; }
-    input, button { margin-top: 10px; }
+    label { font-weight: bold; display: block; margin-top: 15px; }
+    input, button { margin-top: 5px; }
     #status { margin-top: 20px; font-weight: bold; }
   </style>
 </head>
@@ -17,15 +17,11 @@
 
 <h2>Importer seertall</h2>
 
-<label for="weekInput">Uke:</label><br>
+<label for="weekInput">Uke:</label>
 <input type="number" id="weekInput" min="1" max="53" placeholder="f.eks. 15" />
 
-<br><br>
-
-<label for="fileInput">Velg Excel-fil:</label><br>
+<label for="fileInput">Velg Excel-fil:</label>
 <input type="file" id="fileInput" accept=".xlsx,.xls" />
-
-<br><br>
 
 <button onclick="processFile()">Importer</button>
 
@@ -63,7 +59,6 @@ async function processFile() {
 
     const keys = Object.keys(rows[0]).map(k => k.toLowerCase());
 
-    // Automatisk kolonne-gjenkjenning
     const episodeKey = keys.find(k => k.includes("episode"));
     const tittelKey = keys.find(k => k.includes("tittel"));
     const lineartKey = keys.find(k => k.includes("lineær") || k.includes("linear"));
@@ -77,14 +72,13 @@ async function processFile() {
       return;
     }
 
-    // Bygg komplett JSON
     const jsonData = rows.map(r => ({
       episode: r[episodeKey],
       tittel: r[tittelKey],
       lineart: r[lineartKey],
       vod: r[vodKey],
       totalt: r[totaltKey],
-      seere: r[totaltKey], // hovedtallet AI bruker
+      seere: r[totaltKey],
       mediehus: mediehusKey ? r[mediehusKey] : null
     }));
 
