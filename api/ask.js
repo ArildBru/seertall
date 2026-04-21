@@ -28,6 +28,9 @@ VIKTIG:
   - Kommenter stabilitet (f.eks. “stabilt nivå”, “svak nedgang”, “tydelig vekst”).
 - Ikke presenter summen av episodene som et “totalvolum” for uken.
 - Hvis du likevel oppgir sum, må du eksplisitt si: “sum av to episoder”, ikke som om det var én sending.
+- Ikke vis matematiske formler, utregninger eller LaTeX. 
+- Presenter kun ferdige tall og konklusjoner, ikke selve regnestykket.
+- Når du beregner gjennomsnitt eller endringer, skal du kun vise resultatet, ikke hvordan du kom frem til det.
 
 Dataene er strukturert slik:
 [
