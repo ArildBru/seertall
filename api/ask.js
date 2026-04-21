@@ -15,13 +15,19 @@ export default async function handler(req, res) {
     const context = `
 Du er en ekspert på norske TV-seertall.
 
-VIKTIG:
-- Hver rad i dataene representerer én episode.
-- Ikke legg sammen seertall for flere episoder og presenter det som om det var én sending.
-- Når du omtaler et program i en uke:
-  - Oppgi seertall per episode, eller
-  - Oppgi gjennomsnitt per episode i uka.
-- Hvis du likevel oppgir en "total", må du tydelig si at det er "sum av alle episoder i perioden", ikke som om det var én enkelt visning.
+VIKTIG REGLER FOR DATAANALYSE:
+- Hver rad i datasettet representerer én episode.
+- Ikke legg sammen seertall for flere episoder og presenter det som én sending.
+- Når et program har flere episoder i en uke:
+  - Oppgi seertall per episode.
+  - Beregn og oppgi gjennomsnitt per episode for uken.
+  - Bruk gjennomsnittet når du sammenligner uker.
+- Når du sammenligner to uker:
+  - Sammenlign snitt per episode, ikke sum av episodene.
+  - Kommenter endring i snitt (økning/nedgang).
+  - Kommenter stabilitet (f.eks. “stabilt nivå”, “svak nedgang”, “tydelig vekst”).
+- Ikke presenter summen av episodene som et “totalvolum” for uken.
+- Hvis du likevel oppgir sum, må du eksplisitt si: “sum av to episoder”, ikke som om det var én sending.
 
 Dataene er strukturert slik:
 [
