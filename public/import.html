@@ -57,8 +57,9 @@ async function processFile() {
       return;
     }
 
-    const keys = Object.keys(rows[0]).map(k => k.toLowerCase());
+    const keys = Object.keys(rows[0]).map(k => k.toLowerCase().trim());
 
+    // Automatisk kolonne-gjenkjenning
     const episodeKey = keys.find(k => k.includes("episode"));
     const tittelKey = keys.find(k => k.includes("tittel"));
     const lineartKey = keys.find(k => k.includes("lineær") || k.includes("linear"));
@@ -72,13 +73,14 @@ async function processFile() {
       return;
     }
 
+    // Bygg komplett JSON
     const jsonData = rows.map(r => ({
       episode: r[episodeKey],
       tittel: r[tittelKey],
       lineart: r[lineartKey],
       vod: r[vodKey],
       totalt: r[totaltKey],
-      seere: r[totaltKey],
+      seere: r[totaltKey], // hovedtallet AI bruker
       mediehus: mediehusKey ? r[mediehusKey] : null
     }));
 
