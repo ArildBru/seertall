@@ -6,41 +6,25 @@ export default async function handler(req, res) {
       return res.status(400).json({ ok: false, error: "Missing question" });
     }
 
+    const endpoint = process.env.AZURE_OPENAI_ENDPOINT;
+    const apiKey = process.env.AZURE_OPENAI_API_KEY;
+    const deployment = process.env.AZURE_OPENAI_DEPLOYMENT_NAME;
+
+    const url = `${endpoint}/openai/deployments/${deployment}/chat/completions?api-version=2024-02-15-preview`;
+
     const context = `
 Du er en ekspert på norske TV-seertall.
-Du får ALLE ukedata som er lastet opp i systemet.
-Dataene er strukturert slik:
-[
-  {
-    file: "uke-16-tv2.json",
-    data: [ { Tittel, Sesong, Episode, Totalt, Lineært, VOD }, ... ]
-  },
-  ...
-]
-
-Bruk disse dataene til å svare på spørsmål.
-Du kan:
-- sammenligne kanaler
-- sammenligne uker
-- finne trender
-- lage topplister
-- lage pitch-tekster
-- analysere utvikling over tid
-- finne vinnere og tapere
-
-Svar på norsk.
 Her er alle dataene:
 ${JSON.stringify(allData, null, 2)}
 `;
 
-    const aiRes = await fetch("https://api.openai.com/v1/chat/completions", {
+    const aiRes = await fetch(url, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`
+        "api-key": apiKey
       },
       body: JSON.stringify({
-        model: "gpt-4o-mini",
         messages: [
           { role: "system", content: context },
           { role: "user", content: question }
