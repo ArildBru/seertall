@@ -2,118 +2,123 @@
 <html lang="no">
 <head>
   <meta charset="UTF-8" />
-  <title>Importer seertall</title>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <title>Importer data</title>
 
   <style>
-    body { font-family: Arial, sans-serif; padding: 30px; max-width: 600px; }
-    label { font-weight: bold; display: block; margin-top: 15px; }
-    input, button { margin-top: 5px; }
-    #status { margin-top: 20px; font-weight: bold; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      padding: 40px;
+      max-width: 700px;
+      margin: 0 auto;
+      color: #222;
+      background: #fafafa;
+    }
+
+    h2 {
+      font-size: 28px;
+      margin-bottom: 20px;
+      font-weight: 600;
+    }
+
+    label {
+      font-size: 16px;
+      font-weight: 500;
+    }
+
+    input[type="file"] {
+      margin-top: 12px;
+      font-size: 16px;
+    }
+
+    button {
+      margin-top: 20px;
+      padding: 12px 22px;
+      font-size: 16px;
+      border: none;
+      border-radius: 8px;
+      background: #1a73e8;
+      color: white;
+      cursor: pointer;
+      font-weight: 500;
+    }
+
+    button:disabled {
+      background: #9bb9e5;
+      cursor: default;
+    }
+
+    #result {
+      margin-top: 30px;
+      padding: 20px;
+      background: #f2f2f2;
+      border-radius: 10px;
+      font-size: 18px;
+      line-height: 1.5;
+      white-space: pre-wrap;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+    }
+
+    #loading {
+      margin-top: 20px;
+      font-style: italic;
+      font-size: 16px;
+      color: #555;
+    }
+
+    @media (max-width: 600px) {
+      body { padding: 20px; }
+      button { width: 100%; }
+    }
   </style>
 </head>
 
 <body>
 
-<h2>Importer seertall</h2>
+<h2>Importer uke-fil</h2>
 
-<label for="weekInput">Uke:</label>
-<input type="number" id="weekInput" min="1" max="53" placeholder="f.eks. 16" />
+<label for="file">Velg Excel-fil:</label>
+<input type="file" id="file" accept=".xlsx" />
 
-<label for="fileInput">Velg Excel-fil:</label>
-<input type="file" id="fileInput" accept=".xlsx,.xls" />
+<button id="uploadBtn" onclick="uploadFile()">Last opp</button>
 
-<button onclick="processFile()">Importer</button>
-
-<div id="status"></div>
+<div id="loading"></div>
+<div id="result"></div>
 
 <script>
-async function processFile() {
-  const weekNumber = document.getElementById("weekInput").value;
-  const file = document.getElementById("fileInput").files[0];
-
-  if (!weekNumber) {
-    document.getElementById("status").innerText = "Du må skrive inn uke.";
-    return;
-  }
+async function uploadFile() {
+  const fileInput = document.getElementById("file");
+  const file = fileInput.files[0];
 
   if (!file) {
-    document.getElementById("status").innerText = "Du må velge en Excel-fil.";
+    document.getElementById("result").innerText = "Velg en fil først.";
     return;
   }
 
-  document.getElementById("status").innerText = "Leser fil...";
+  const button = document.getElementById("uploadBtn");
+  button.disabled = true;
 
-  const reader = new FileReader();
-  reader.onload = async (e) => {
-    const data = new Uint8Array(e.target.result);
-    const workbook = XLSX.read(data, { type: "array" });
+  document.getElementById("result").innerText = "";
+  document.getElementById("loading").innerText = "Laster opp…";
 
-    const sheet = workbook.Sheets[workbook.SheetNames[0]];
-    const rows = XLSX.utils.sheet_to_json(sheet);
+  const formData = new FormData();
+  formData.append("file", file);
 
-    if (rows.length === 0) {
-      document.getElementById("status").innerText = "Filen inneholder ingen rader.";
-      return;
-    }
+  const response = await fetch("/api/import-week-file", {
+    method: "POST",
+    body: formData
+  });
 
-    // Normaliser kolonnenavn
-    const normalizedKeys = Object.fromEntries(
-      Object.keys(rows[0]).map(originalKey => [
-        originalKey.toLowerCase().trim(),
-        originalKey
-      ])
-    );
+  const result = await response.json();
 
-    const tittelKey = normalizedKeys["tittel"];
-    const episodeKey = normalizedKeys["episode"];
-    const lineartKey = normalizedKeys["lineært"] || normalizedKeys["lineart"] || normalizedKeys["linear"];
-    const vodKey = normalizedKeys["vod"];
-    const totalKey = normalizedKeys["totalt"];
-    const mediehusKey = normalizedKeys["mediehus"];
+  document.getElementById("loading").innerText = "";
+  button.disabled = false;
 
-    if (!tittelKey || !episodeKey || !lineartKey || !vodKey || !totalKey) {
-      document.getElementById("status").innerText =
-        "Fant ikke alle nødvendige kolonner (tittel, episode, lineært, VOD, totalt).";
-      return;
-    }
-
-    // Bygg JSON i riktig format for analyseverktøyet
-    const jsonData = rows.map(r => ({
-      program: r[tittelKey],
-      episode: r[episodeKey],
-      uke: Number(weekNumber),
-      lineært: r[lineartKey],
-      vod: r[vodKey],
-      total: r[totalKey],
-      kanal: mediehusKey ? r[mediehusKey] : null
-    }));
-
-    const filename = `uke-${weekNumber}-tv2.json`;
-
-    document.getElementById("status").innerText = "Lagrer i Azure...";
-
-    const response = await fetch("/api/save-week-file", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        filename,
-        data: jsonData
-      })
-    });
-
-    const result = await response.json();
-
-    if (result.ok) {
-      document.getElementById("status").innerText =
-        `Filen ble lagret som ${filename}`;
-    } else {
-      document.getElementById("status").innerText =
-        "Feil ved lagring: " + result.error;
-    }
-  };
-
-  reader.readAsArrayBuffer(file);
+  if (result.ok) {
+    document.getElementById("result").innerText =
+      `Filen ble importert.\n\nUke: ${result.week}\nRader: ${result.rows}`;
+  } else {
+    document.getElementById("result").innerText = "Feil: " + result.error;
+  }
 }
 </script>
 
