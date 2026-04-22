@@ -112,4 +112,25 @@ document.getElementById("askAiBtn").addEventListener("click", async () => {
   const question = document.getElementById("aiQuestion").value;
   const answerBox = document.getElementById("aiAnswer");
 
-  answer
+  answerBox.innerHTML = "<span class='loading'>Analyserer…</span>";
+
+  const response = await fetch("/api/ask", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ question, allData })
+  });
+
+  const data = await response.json();
+
+  if (data.ok) {
+    answerBox.textContent = data.answer;
+  } else {
+    answerBox.textContent = "Feil: " + (data.error || "Ukjent feil");
+  }
+});
+
+loadAllData();
+</script>
+
+</body>
+</html>
