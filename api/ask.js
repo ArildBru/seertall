@@ -4,9 +4,10 @@ export default async function handler(req, res) {
       return res.status(405).json({ error: "Method not allowed" });
     }
 
-    const { question, allData } = req.body;
+    // Mottar data fra analyse.html
+    const { question, data } = req.body;
 
-    if (!question || !allData) {
+    if (!question || !data) {
       return res.status(400).json({ error: "Missing question or data" });
     }
 
@@ -14,6 +15,7 @@ export default async function handler(req, res) {
     const ENDPOINT = process.env.AZURE_OPENAI_ENDPOINT;
     const DEPLOYMENT = process.env.AZURE_OPENAI_DEPLOYMENT_NAME;
 
+    // Systemprompt med regler + datasettet
     const systemPrompt = `
 Du er en ekspert på norske TV-seertall. Du analyserer utvikling, trender og sammenligninger basert på data.
 
@@ -23,7 +25,7 @@ VIKTIGE DATAREGLER:
 - Feltet "seere" er identisk med "totalt".
 - Når brukeren spør om seertall uten å spesifisere type, bruk "totalt".
 - Når brukeren spør spesifikt om VOD, bruk feltet "vod".
-- Når brukeren spør spesifikt om lineært, bruk feltet "lineart".
+- Når brukeren spør spesifikt om lineært, bruk feltet "lineært".
 - Ikke anta at tallene kun er lineære.
 - Ikke si at VOD mangler — VOD finnes alltid i datasettet.
 - Ikke etterlys VOD-tall når "vod" er oppgitt.
@@ -41,12 +43,12 @@ REGLER FOR ANALYSE:
   - Kommenter stabilitet (f.eks. “stabilt nivå”, “svak nedgang”, “tydelig vekst”).
 
 SPRÅKREGLER:
-- Ikke vis matematiske formler eller LaTeX.
+- Ikke vis matematiske formler.
 - Presenter kun ferdige tall og konklusjoner.
 - Svar kort, presist og profesjonelt – som en TV-analytiker.
 
 Her er alle dataene:
-${JSON.stringify(allData, null, 2)}
+${JSON.stringify(data, null, 2)}
     `;
 
     const userPrompt = `
@@ -54,6 +56,7 @@ Bruk seertallsdataene og svar på dette spørsmålet:
 ${question}
     `;
 
+    // Kall Azure OpenAI
     const response = await fetch(
       `${ENDPOINT}/openai/deployments/${DEPLOYMENT}/chat/completions?api-version=2024-10-01-preview`,
       {
@@ -72,17 +75,18 @@ ${question}
       }
     );
 
-    const data = await response.json();
+    const result = await response.json();
 
     if (!response.ok) {
-      console.error("AZURE ERROR:", JSON.stringify(data, null, 2));
+      console.error("AZURE ERROR:", JSON.stringify(result, null, 2));
       return res.status(500).json({
         error: "Azure OpenAI request failed",
-        details: data
+        details: result
       });
     }
 
-    const answer = data.choices?.[0]?.message?.content || "Ingen respons fra modellen.";
+    const answer =
+      result.choices?.[0]?.message?.content || "Ingen respons fra modellen.";
 
     res.status(200).json({
       ok: true,
