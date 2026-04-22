@@ -2,7 +2,7 @@
 <html lang="no">
 <head>
   <meta charset="UTF-8" />
-  <title>Importer data</title>
+  <title>Importer uke-fil</title>
 
   <style>
     body {
@@ -23,6 +23,18 @@
     label {
       font-size: 16px;
       font-weight: 500;
+      display: block;
+      margin-top: 20px;
+    }
+
+    .week-input {
+      width: 140px;
+      padding: 12px;
+      font-size: 20px;
+      border-radius: 8px;
+      border: 1px solid #ccc;
+      margin-top: 10px;
+      background: white;
     }
 
     input[type="file"] {
@@ -31,7 +43,7 @@
     }
 
     button {
-      margin-top: 20px;
+      margin-top: 24px;
       padding: 12px 22px;
       font-size: 16px;
       border: none;
@@ -68,6 +80,7 @@
     @media (max-width: 600px) {
       body { padding: 20px; }
       button { width: 100%; }
+      .week-input { width: 100%; }
     }
   </style>
 </head>
@@ -75,6 +88,9 @@
 <body>
 
 <h2>Importer uke-fil</h2>
+
+<label for="week">Uke:</label>
+<input type="text" id="week" placeholder="f.eks 16" class="week-input" />
 
 <label for="file">Velg Excel-fil:</label>
 <input type="file" id="file" accept=".xlsx" />
@@ -86,8 +102,14 @@
 
 <script>
 async function uploadFile() {
+  const week = document.getElementById("week").value.trim();
   const fileInput = document.getElementById("file");
   const file = fileInput.files[0];
+
+  if (!week) {
+    document.getElementById("result").innerText = "Skriv inn ukenummer.";
+    return;
+  }
 
   if (!file) {
     document.getElementById("result").innerText = "Velg en fil først.";
@@ -102,6 +124,7 @@ async function uploadFile() {
 
   const formData = new FormData();
   formData.append("file", file);
+  formData.append("week", week);
 
   const response = await fetch("/api/import-week-file", {
     method: "POST",
