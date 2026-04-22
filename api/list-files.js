@@ -3,7 +3,7 @@ import path from "path";
 
 export default async function handler(req, res) {
   try {
-    const folder = path.join(process.cwd(), "data", "weeks");
+    const folder = path.join(process.cwd(), "data", );
     const files = await readdir(folder);
 
     const jsonFiles = files.filter(f => f.endsWith(".json"));
