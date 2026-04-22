@@ -93,4 +93,29 @@ async function processFile() {
 
     document.getElementById("status").innerText = "Lagrer i Azure...";
 
-    const response =
+    const response = await fetch("/api/save-week-file", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        filename,
+        data: jsonData
+      })
+    });
+
+    const result = await response.json();
+
+    if (result.ok) {
+      document.getElementById("status").innerText =
+        `Filen ble lagret som ${filename}`;
+    } else {
+      document.getElementById("status").innerText =
+        "Feil ved lagring: " + result.error;
+    }
+  };
+
+  reader.readAsArrayBuffer(file);
+}
+</script>
+
+</body>
+</html>
