@@ -18,7 +18,7 @@
 <h2>Importer seertall</h2>
 
 <label for="weekInput">Uke:</label>
-<input type="number" id="weekInput" min="1" max="53" placeholder="f.eks. 15" />
+<input type="number" id="weekInput" min="1" max="53" placeholder="f.eks. 16" />
 
 <label for="fileInput">Velg Excel-fil:</label>
 <input type="file" id="fileInput" accept=".xlsx,.xls" />
@@ -57,66 +57,40 @@ async function processFile() {
       return;
     }
 
-    // NORMALISER ALLE KOLONNENAVN
+    // Normaliser kolonnenavn
     const normalizedKeys = Object.fromEntries(
       Object.keys(rows[0]).map(originalKey => [
-        originalKey.toLowerCase().trim(), // nøkkel vi søker på
-        originalKey // original Excel-kolonnen
+        originalKey.toLowerCase().trim(),
+        originalKey
       ])
     );
 
-    // Finn riktige kolonner basert på normaliserte navn
-    const episodeKey = normalizedKeys["episode"];
     const tittelKey = normalizedKeys["tittel"];
+    const episodeKey = normalizedKeys["episode"];
     const lineartKey = normalizedKeys["lineært"] || normalizedKeys["lineart"] || normalizedKeys["linear"];
     const vodKey = normalizedKeys["vod"];
-    const totaltKey = normalizedKeys["totalt"];
+    const totalKey = normalizedKeys["totalt"];
     const mediehusKey = normalizedKeys["mediehus"];
 
-    if (!episodeKey || !tittelKey || !lineartKey || !vodKey || !totaltKey) {
+    if (!tittelKey || !episodeKey || !lineartKey || !vodKey || !totalKey) {
       document.getElementById("status").innerText =
-        "Fant ikke alle nødvendige kolonner (episode, tittel, lineært, VOD, totalt).";
+        "Fant ikke alle nødvendige kolonner (tittel, episode, lineært, VOD, totalt).";
       return;
     }
 
-    // Bygg komplett JSON med ORIGINALKEYS
+    // Bygg JSON i riktig format for analyseverktøyet
     const jsonData = rows.map(r => ({
+      program: r[tittelKey],
       episode: r[episodeKey],
-      tittel: r[tittelKey],
-      lineart: r[lineartKey],
+      uke: Number(weekNumber),
+      lineært: r[lineartKey],
       vod: r[vodKey],
-      totalt: r[totaltKey],
-      seere: r[totaltKey], // hovedtallet AI bruker
-      mediehus: mediehusKey ? r[mediehusKey] : null
+      total: r[totalKey],
+      kanal: mediehusKey ? r[mediehusKey] : null
     }));
 
-    const filename = `uke-${weekNumber}.json`;
+    const filename = `uke-${weekNumber}-tv2.json`;
 
     document.getElementById("status").innerText = "Lagrer i Azure...";
 
-    const response = await fetch("/api/save-week-file", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        filename,
-        data: jsonData
-      })
-    });
-
-    const result = await response.json();
-
-    if (result.ok) {
-      document.getElementById("status").innerText =
-        `Filen ble lagret som ${filename}`;
-    } else {
-      document.getElementById("status").innerText =
-        "Feil ved lagring: " + result.error;
-    }
-  };
-
-  reader.readAsArrayBuffer(file);
-}
-</script>
-
-</body>
-</html>
+    const response =
