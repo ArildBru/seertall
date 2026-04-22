@@ -3,132 +3,90 @@
 <head>
   <meta charset="UTF-8" />
   <title>Analyse</title>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
 
   <style>
-    body {
-      font-family: 'Inter', sans-serif;
-      margin: 0;
-      padding: 40px;
-      background: #f7f9fc;
-      color: #222;
-      display: flex;
-      justify-content: center;
-    }
-
-    .container {
-      width: 100%;
-      max-width: 700px;
-    }
-
-    h2 {
-      text-align: center;
-      font-size: 28px;
-      margin-bottom: 20px;
-    }
-
-    .card {
-      background: white;
-      padding: 25px;
-      border-radius: 12px;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-    }
-
-    textarea {
-      width: 100%;
-      height: 120px;
-      padding: 12px;
-      border-radius: 8px;
-      border: 1px solid #ccc;
-      font-size: 16px;
-      resize: vertical;
-    }
-
-    button {
-      margin-top: 12px;
-      padding: 14px 22px;
-      background: #2d6cdf;
-      color: white;
-      border: none;
-      border-radius: 8px;
-      font-size: 16px;
-      font-weight: 600;
-      cursor: pointer;
-      width: 100%;
-    }
-
-    button:hover {
-      background: #1f54b3;
-    }
-
-    #aiAnswer {
-      margin-top: 20px;
-      white-space: pre-wrap;
-      line-height: 1.6;
-      font-size: 17px;
-    }
-
-    .loading {
-      opacity: 0.6;
-      font-style: italic;
-    }
+    body { font-family: Arial, sans-serif; padding: 30px; max-width: 700px; }
+    h2 { margin-bottom: 20px; }
+    textarea { width: 100%; height: 120px; margin-top: 10px; }
+    button { margin-top: 10px; padding: 10px 20px; font-size: 16px; }
+    #answer { margin-top: 30px; white-space: pre-wrap; font-size: 18px; }
+    #loading { margin-top: 20px; font-style: italic; }
   </style>
 </head>
 
 <body>
 
-<div class="container">
+<h2>Analyse</h2>
 
-  <h2>Analyse</h2>
+<label for="question">Skriv inn et spørsmål:</label>
+<textarea id="question" placeholder="f.eks. Hva var VOD for Boksen i uke 16"></textarea>
 
-  <div class="card">
-    <textarea id="aiQuestion" placeholder="Skriv et spørsmål, f.eks. 'Hva var VOD‑tallene for Boksen i uke 15'"></textarea>
-    <button id="askAiBtn">Spør AI</button>
+<button onclick="askAI()">Spør AI</button>
 
-    <div id="aiAnswer"></div>
-  </div>
-
-</div>
+<div id="loading"></div>
+<div id="answer"></div>
 
 <script>
-let allData = {};
+let allData = [];
 
+// 1. Hent liste over alle uke-filer fra Azure
 async function loadAllData() {
-  const response = await fetch("/api/list-files");
-  const files = await response.json();
+  document.getElementById("loading").innerText = "Laster datafiler...";
 
-  const datasets = [];
+  const listRes = await fetch("/api/list-week-files");
+  const listJson = await listRes.json();
 
-  for (const file of files) {
-    const res = await fetch("/api/get-week-file?filename=" + file);
-    const json = await res.json();
-    datasets.push(...json.data);
+  if (!listJson.ok) {
+    document.getElementById("loading").innerText = "Kunne ikke hente liste over filer.";
+    return;
   }
 
-  allData = datasets;
+  const files = listJson.files;
+
+  const loaded = [];
+
+  for (const file of files) {
+    const res = await fetch(`/api/get-week-file?filename=${file}`);
+    const json = await res.json();
+
+    if (json.ok && Array.isArray(json.data)) {
+      loaded.push(...json.data);
+    }
+  }
+
+  allData = loaded;
+  document.getElementById("loading").innerText = `Lastet ${allData.length} datapunkter.`;
 }
 
-document.getElementById("askAiBtn").addEventListener("click", async () => {
-  const question = document.getElementById("aiQuestion").value;
-  const answerBox = document.getElementById("aiAnswer");
+// 2. Send spørsmål + datasett til AI
+async function askAI() {
+  const question = document.getElementById("question").value.trim();
+  if (!question) return;
 
-  answerBox.innerHTML = "<span class='loading'>Analyserer…</span>";
+  document.getElementById("answer").innerText = "";
+  document.getElementById("loading").innerText = "Tenker...";
 
   const response = await fetch("/api/ask", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ question, allData })
+    body: JSON.stringify({
+      question,
+      data: allData
+    })
   });
 
-  const data = await response.json();
+  const result = await response.json();
 
-  if (data.ok) {
-    answerBox.textContent = data.answer;
+  if (result.ok) {
+    document.getElementById("loading").innerText = "";
+    document.getElementById("answer").innerText = result.answer;
   } else {
-    answerBox.textContent = "Feil: " + (data.error || "Ukjent feil");
+    document.getElementById("loading").innerText = "";
+    document.getElementById("answer").innerText = "Feil: " + result.error;
   }
-});
+}
 
+// Last data automatisk når siden åpnes
 loadAllData();
 </script>
 
