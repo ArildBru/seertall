@@ -21,7 +21,7 @@
 <label for="question">Skriv inn et spørsmål:</label>
 <textarea id="question" placeholder="f.eks. Hva var VOD for Boksen i uke 16"></textarea>
 
-<button onclick="askAI()">Spør AI</button>
+<button id="askBtn" onclick="askAI()">Spør AI</button>
 
 <div id="loading"></div>
 <div id="answer"></div>
@@ -29,9 +29,13 @@
 <script>
 let allData = [];
 
-// 1. Hent liste over alle uke-filer fra Azure
+// 1. Last ALLE data fra Azure
 async function loadAllData() {
-  document.getElementById("loading").innerText = "Laster datafiler...";
+  const button = document.getElementById("askBtn");
+  button.disabled = true;
+  button.innerText = "Laster data...";
+
+  document.getElementById("loading").innerText = "Henter liste over filer...";
 
   const listRes = await fetch("/api/list-week-files");
   const listJson = await listRes.json();
@@ -42,8 +46,9 @@ async function loadAllData() {
   }
 
   const files = listJson.files;
-
   const loaded = [];
+
+  document.getElementById("loading").innerText = `Fant ${files.length} filer. Laster...`;
 
   for (const file of files) {
     const res = await fetch(`/api/get-week-file?filename=${file}`);
@@ -55,13 +60,24 @@ async function loadAllData() {
   }
 
   allData = loaded;
-  document.getElementById("loading").innerText = `Lastet ${allData.length} datapunkter.`;
+
+  document.getElementById("loading").innerText =
+    `Lastet ${allData.length} datapunkter.`;
+
+  button.disabled = false;
+  button.innerText = "Spør AI";
 }
 
 // 2. Send spørsmål + datasett til AI
 async function askAI() {
   const question = document.getElementById("question").value.trim();
   if (!question) return;
+
+  if (allData.length === 0) {
+    document.getElementById("answer").innerText =
+      "Data lastes fortsatt — vent et øyeblikk og prøv igjen.";
+    return;
+  }
 
   document.getElementById("answer").innerText = "";
   document.getElementById("loading").innerText = "Tenker...";
