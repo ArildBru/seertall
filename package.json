@@ -9,7 +9,7 @@
   },
   "dependencies": {
     "@azure/storage-blob": "^12.17.0",
-    "formidable": "^3.5.4",
+    "formidable": "^2.1.1",
     "xlsx": "^0.18.5"
   }
 }
