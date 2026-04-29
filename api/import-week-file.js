@@ -1,22 +1,22 @@
-import formidable from "formidable";
-import fs from "fs";
-import path from "path";
-import xlsx from "xlsx";
+const formidable = require("formidable");
+const fs = require("fs");
+const path = require("path");
+const xlsx = require("xlsx");
 
 export const config = {
   api: {
-    bodyParser: false, // VIKTIG: lar oss lese multipart/form-data
+    bodyParser: false,
   },
 };
 
-export default async function handler(req, res) {
+export default function handler(req, res) {
   if (req.method !== "POST") {
     return res.status(405).json({ ok: false, error: "Only POST allowed" });
   }
 
   const form = formidable({ multiples: false });
 
-  form.parse(req, async (err, fields, files) => {
+  form.parse(req, (err, fields, files) => {
     try {
       if (err) {
         console.error("Form error:", err);
@@ -46,4 +46,16 @@ export default async function handler(req, res) {
       const filepath = path.join(dir, filename);
 
       // Lagre JSON
-      fs.writeFileSync(filepath
+      fs.writeFileSync(filepath, JSON.stringify(rows, null, 2), "utf8");
+
+      return res.status(200).json({
+        ok: true,
+        week,
+        rows: rows.length,
+      });
+    } catch (error) {
+      console.error("Import error:", error);
+      return res.status(500).json({ ok: false, error: error.message });
+    }
+  });
+}
