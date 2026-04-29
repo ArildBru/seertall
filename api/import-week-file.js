@@ -3,31 +3,28 @@ const fs = require("fs");
 const path = require("path");
 const xlsx = require("xlsx");
 
-export const config = {
-  api: {
-    bodyParser: false,
-  },
-};
-
-export default function handler(req, res) {
+module.exports = async (req, res) => {
   if (req.method !== "POST") {
-    return res.status(405).json({ ok: false, error: "Only POST allowed" });
+    res.status(405).json({ ok: false, error: "Only POST allowed" });
+    return;
   }
 
   const form = formidable({ multiples: false });
 
   form.parse(req, (err, fields, files) => {
-    try {
-      if (err) {
-        console.error("Form error:", err);
-        return res.status(500).json({ ok: false, error: "Form parse error" });
-      }
+    if (err) {
+      console.error("Form error:", err);
+      res.status(500).json({ ok: false, error: "Form parse error" });
+      return;
+    }
 
+    try {
       const week = fields.week;
       const file = files.file;
 
       if (!week || !file) {
-        return res.status(400).json({ ok: false, error: "Missing week or file" });
+        res.status(400).json({ ok: false, error: "Missing week or file" });
+        return;
       }
 
       // Les Excel
@@ -48,14 +45,20 @@ export default function handler(req, res) {
       // Lagre JSON
       fs.writeFileSync(filepath, JSON.stringify(rows, null, 2), "utf8");
 
-      return res.status(200).json({
+      res.status(200).json({
         ok: true,
         week,
         rows: rows.length,
       });
     } catch (error) {
       console.error("Import error:", error);
-      return res.status(500).json({ ok: false, error: error.message });
+      res.status(500).json({ ok: false, error: error.message });
     }
   });
-}
+};
+
+module.exports.config = {
+  api: {
+    bodyParser: false,
+  },
+};
