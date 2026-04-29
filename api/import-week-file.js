@@ -27,22 +27,18 @@ module.exports = async (req, res) => {
         return;
       }
 
-      // Les Excel
       const workbook = xlsx.readFile(file.filepath);
       const sheet = workbook.Sheets[workbook.SheetNames[0]];
       const rows = xlsx.utils.sheet_to_json(sheet);
 
-      // Lag mappe hvis den ikke finnes
       const dir = path.join(process.cwd(), "data", "weeks");
       if (!fs.existsSync(dir)) {
         fs.mkdirSync(dir, { recursive: true });
       }
 
-      // Lag filnavn
       const filename = `uke-${week}.json`;
       const filepath = path.join(dir, filename);
 
-      // Lagre JSON
       fs.writeFileSync(filepath, JSON.stringify(rows, null, 2), "utf8");
 
       res.status(200).json({
