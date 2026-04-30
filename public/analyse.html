@@ -27,7 +27,7 @@
       margin-bottom: 20px;
     }
 
-    select, button, textarea {
+    textarea, button {
       width: 100%;
       padding: 12px;
       margin-top: 10px;
@@ -48,11 +48,6 @@
       background: #0059c9;
     }
 
-    textarea {
-      height: 160px;
-      resize: vertical;
-    }
-
     pre {
       background: #eee;
       padding: 12px;
@@ -66,72 +61,62 @@
 
   <h1>Analyse</h1>
 
-  <!-- Velg uke -->
-  <div class="card">
-    <h2>Velg uke</h2>
-    <select id="weekSelect"></select>
-    <button onclick="loadWeek()">Last inn uke</button>
-  </div>
-
-  <!-- Data -->
-  <div class="card">
-    <h2>Data for uke</h2>
-    <pre id="weekData">Ingen data lastet ennå.</pre>
-  </div>
-
-  <!-- AI -->
   <div class="card">
     <h2>AI-spørsmål</h2>
-    <textarea id="question" placeholder="Still et spørsmål om seertallene..."></textarea>
-    <button onclick="askAI()">Spør AI</button>
+    <p id="status">Laster inn alle ukedata…</p>
+    <textarea id="question" placeholder="Still et spørsmål om seertallene…"></textarea>
+    <button id="askBtn" disabled onclick="askAI()">Spør AI</button>
     <pre id="aiAnswer"></pre>
   </div>
 
 <script>
-  // Hent liste over uker fra Azure
-  async function loadWeeks() {
-    const res = await fetch("/api/list-week-files");
-    const data = await res.json();
+  window.allData = [];
 
-    const select = document.getElementById("weekSelect");
-    select.innerHTML = "";
+  async function loadAllData() {
+    try {
+      const res = await fetch("/api/list-week-files");
+      const data = await res.json();
 
-    data.files
-      .map(f => f.replace("uke-", "").replace(".json", ""))
-      .sort((a, b) => Number(a) - Number(b))
-      .forEach(week => {
-        const opt = document.createElement("option");
-        opt.value = week;
-        opt.textContent = "Uke " + week;
-        select.appendChild(opt);
-      });
+      const files = data.files;
+
+      const all = [];
+
+      for (const file of files) {
+        const week = file.replace("uke-", "").replace(".json", "");
+        const resWeek = await fetch(`/api/get-week-file?week=${week}`);
+        const json = await resWeek.json();
+        all.push(...json.rows);
+      }
+
+      window.allData = all;
+
+      document.getElementById("status").textContent =
+        `Lastet ${all.length} rader fra ${files.length} uker.`;
+      document.getElementById("askBtn").disabled = false;
+
+    } catch (err) {
+      document.getElementById("status").textContent =
+        "Feil ved lasting av data.";
+    }
   }
 
-  // Hent én uke
-  async function loadWeek() {
-    const week = document.getElementById("weekSelect").value;
-    const res = await fetch(`/api/get-week-file?week=${week}`);
-    const data = await res.json();
-
-    document.getElementById("weekData").textContent =
-      JSON.stringify(data.rows, null, 2);
-  }
-
-  // AI-spørring
   async function askAI() {
     const question = document.getElementById("question").value;
 
     const res = await fetch("/api/ask", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ question })
+      body: JSON.stringify({
+        question,
+        data: window.allData
+      })
     });
 
     const data = await res.json();
     document.getElementById("aiAnswer").textContent = data.answer;
   }
 
-  loadWeeks();
+  loadAllData();
 </script>
 
 </body>
