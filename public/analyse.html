@@ -73,30 +73,52 @@
   window.allData = [];
 
   async function loadAllData() {
-    try {
-      const res = await fetch("/api/list-week-files");
-      const data = await res.json();
+  try {
+    const res = await fetch("/api/list-week-files");
+    const data = await res.json();
 
-      const files = data.files;
-      const all = [];
+    const files = data.files;
+    const all = [];
+    let loaded = 0;
+    let failed = 0;
 
-      for (const filename of files) {
+    for (const filename of files) {
+      try {
         const resWeek = await fetch(`/api/get-week-file?filename=${filename}`);
+
+        if (!resWeek.ok) {
+          failed++;
+          continue;
+        }
+
         const json = await resWeek.json();
+
+        if (!json.rows || !Array.isArray(json.rows)) {
+          failed++;
+          continue;
+        }
+
         all.push(...json.rows);
+        loaded++;
+
+      } catch (err) {
+        failed++;
       }
-
-      window.allData = all;
-
-      document.getElementById("status").textContent =
-        `Lastet ${all.length} rader fra ${files.length} filer.`;
-      document.getElementById("askBtn").disabled = false;
-
-    } catch (err) {
-      document.getElementById("status").textContent =
-        "Feil ved lasting av data.";
     }
+
+    window.allData = all;
+
+    document.getElementById("status").textContent =
+      `Lastet ${loaded} filer (${failed} feilet). Totalt ${all.length} rader.`;
+
+    document.getElementById("askBtn").disabled = false;
+
+  } catch (err) {
+    document.getElementById("status").textContent =
+      "Kritisk feil ved lasting av data.";
   }
+}
+
 
   async function askAI() {
     const question = document.getElementById("question").value;
