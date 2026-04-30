@@ -1,7 +1,12 @@
 const formidable = require("formidable");
-const fs = require("fs");
-const path = require("path");
 const xlsx = require("xlsx");
+const { BlobServiceClient, StorageSharedKeyCredential } = require("@azure/storage-blob");
+
+module.exports.config = {
+  api: {
+    bodyParser: false,
+  },
+};
 
 module.exports = async (req, res) => {
   if (req.method !== "POST") {
@@ -11,7 +16,7 @@ module.exports = async (req, res) => {
 
   const form = formidable({ multiples: false });
 
-  form.parse(req, (err, fields, files) => {
+  form.parse(req, async (err, fields, files) => {
     if (err) {
       console.error("Form error:", err);
       res.status(500).json({ ok: false, error: "Form parse error" });
@@ -27,19 +32,35 @@ module.exports = async (req, res) => {
         return;
       }
 
+      // Les Excel-filen
       const workbook = xlsx.readFile(file.filepath);
       const sheet = workbook.Sheets[workbook.SheetNames[0]];
       const rows = xlsx.utils.sheet_to_json(sheet);
 
-      const dir = path.join(process.cwd(), "data", "weeks");
-      if (!fs.existsSync(dir)) {
-        fs.mkdirSync(dir, { recursive: true });
-      }
+      // Azure Blob Storage-klient
+      const account = process.env.AZURE_STORAGE_ACCOUNT_NAME;
+      const accountKey = process.env.AZURE_STORAGE_ACCOUNT_KEY;
+      const containerName = process.env.AZURE_STORAGE_CONTAINER;
 
-      const filename = `uke-${week}.json`;
-      const filepath = path.join(dir, filename);
+      const sharedKeyCredential = new StorageSharedKeyCredential(account, accountKey);
+      const blobServiceClient = new BlobServiceClient(
+        `https://${account}.blob.core.windows.net`,
+        sharedKeyCredential
+      );
 
-      fs.writeFileSync(filepath, JSON.stringify(rows, null, 2), "utf8");
+      // Sørg for at containeren finnes
+      const containerClient = blobServiceClient.getContainerClient(containerName);
+      await containerClient.createIfNotExists();
+
+      // Blob-navn
+      const blobName = `uke-${week}.json`;
+      const blockBlobClient = containerClient.getBlockBlobClient(blobName);
+
+      // Last opp JSON
+      const jsonData = JSON.stringify(rows, null, 2);
+      await blockBlobClient.upload(jsonData, Buffer.byteLength(jsonData), {
+        blobHTTPHeaders: { blobContentType: "application/json" },
+      });
 
       res.status(200).json({
         ok: true,
@@ -51,10 +72,4 @@ module.exports = async (req, res) => {
       res.status(500).json({ ok: false, error: error.message });
     }
   });
-};
-
-module.exports.config = {
-  api: {
-    bodyParser: false,
-  },
 };
