@@ -78,12 +78,10 @@
       const data = await res.json();
 
       const files = data.files;
-
       const all = [];
 
-      for (const file of files) {
-        const week = file.replace("uke-", "").replace(".json", "");
-        const resWeek = await fetch(`/api/get-week-file?week=${week}`);
+      for (const filename of files) {
+        const resWeek = await fetch(`/api/get-week-file?filename=${filename}`);
         const json = await resWeek.json();
         all.push(...json.rows);
       }
@@ -91,7 +89,7 @@
       window.allData = all;
 
       document.getElementById("status").textContent =
-        `Lastet ${all.length} rader fra ${files.length} uker.`;
+        `Lastet ${all.length} rader fra ${files.length} filer.`;
       document.getElementById("askBtn").disabled = false;
 
     } catch (err) {
