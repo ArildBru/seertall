@@ -1,83 +1,92 @@
-import { BlobServiceClient } from "@azure/storage-blob";
-import * as XLSX from "xlsx";
-
-export default async function handler(req, res) {
-  try {
-    if (req.method !== "POST") {
-      return res.status(405).json({ ok: false, error: "Method not allowed" });
+<!DOCTYPE html>
+<html lang="no">
+<head>
+  <meta charset="UTF-8" />
+  <title>Importer uke-data</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 600px;
+      margin: 40px auto;
+      padding: 20px;
     }
-
-    const { uke } = req.body;
-    const file = req.body.file; // base64 fra frontend
-
-    if (!uke || !file) {
-      return res.status(400).json({ ok: false, error: "Missing week or file" });
+    input, button {
+      padding: 10px;
+      font-size: 16px;
+      margin-top: 10px;
+      width: 100%;
     }
-
-    // -------------------------------------------------------
-    // 1. Les Excel
-    // -------------------------------------------------------
-    const buffer = Buffer.from(file, "base64");
-    const workbook = XLSX.read(buffer, { type: "buffer" });
-    const sheet = workbook.Sheets[workbook.SheetNames[0]];
-    const rows = XLSX.utils.sheet_to_json(sheet);
-
-    if (!rows || rows.length === 0) {
-      return res.status(400).json({ ok: false, error: "Empty Excel file" });
+    #status {
+      margin-top: 20px;
+      padding: 15px;
+      background: #f3f3f3;
+      border-radius: 6px;
+      white-space: pre-wrap;
     }
+  </style>
+</head>
+<body>
 
-    // -------------------------------------------------------
-    // 2. Finn kanalnavn fra Excel
-    // -------------------------------------------------------
-    const kanalRaw = rows[0].Mediehus || rows[0].mediehus || rows[0].Kanal || rows[0].kanal;
+  <h1>Importer uke-data</h1>
 
-    if (!kanalRaw) {
-      return res.status(400).json({ ok: false, error: "Could not detect channel in Excel" });
+  <label>Uke:</label>
+  <input type="number" id="week" placeholder="f.eks. 17" />
+
+  <label>Velg Excel-fil:</label>
+  <input type="file" id="fileInput" accept=".xlsx,.xls" />
+
+  <button onclick="uploadFile()">Importer</button>
+
+  <div id="status"></div>
+
+  <script>
+    async function uploadFile() {
+      const week = document.getElementById("week").value;
+      const fileInput = document.getElementById("fileInput");
+      const status = document.getElementById("status");
+
+      if (!week) {
+        status.textContent = "Du må skrive inn uke.";
+        return;
+      }
+      if (!fileInput.files.length) {
+        status.textContent = "Du må velge en Excel-fil.";
+        return;
+      }
+
+      const file = fileInput.files[0];
+
+      const formData = new FormData();
+      formData.append("week", week);
+      formData.append("file", file);
+
+      status.textContent = "Laster opp...";
+
+      try {
+        const res = await fetch("/api/import-week-file", {
+          method: "POST",
+          body: formData
+        });
+
+        const data = await res.json();
+
+        if (!data.ok) {
+          status.textContent = "Feil: " + data.error;
+          return;
+        }
+
+        status.textContent =
+          "✔ Importert!\n" +
+          "Uke: " + data.week + "\n" +
+          "Kanal: " + data.kanal + "\n" +
+          "Filnavn: " + data.filename + "\n" +
+          "Rader: " + data.rows;
+
+      } catch (err) {
+        status.textContent = "Ukjent feil: " + err.message;
+      }
     }
+  </script>
 
-    // Normaliser kanalnavn
-    const kanal = kanalRaw.toLowerCase().replace(/\s+/g, "");
-
-    // -------------------------------------------------------
-    // 3. Konverter Excel-rader til vårt JSON-format
-    // -------------------------------------------------------
-    const jsonRows = rows.map((r) => ({
-      program: r.Tittel || r.tittel || "",
-      episode: Number(r.Episode || r.episode || 0),
-      uke: Number(uke),
-      lineart: Number(r.Lineært || r["Lineært"] || r.Lineart || r.lineart || 0),
-      vod: Number(r.VOD || r.vod || 0),
-      total: Number(r.Totalt || r.totalt || 0),
-      kanal: kanalRaw
-    }));
-
-    // -------------------------------------------------------
-    // 4. Lag filnavn som aldri overskriver
-    // -------------------------------------------------------
-    const filename = `uke-${uke}-${kanal}.json`;
-
-    // -------------------------------------------------------
-    // 5. Lagre i Azure Blob Storage
-    // -------------------------------------------------------
-    const blobService = BlobServiceClient.fromConnectionString(process.env.AZURE_STORAGE_CONNECTION_STRING);
-    const container = blobService.getContainerClient("weeks");
-    const blob = container.getBlockBlobClient(filename);
-
-    await blob.upload(JSON.stringify({ ok: true, filename, rows: jsonRows }, null, 2), Buffer.byteLength(JSON.stringify(jsonRows)));
-
-    // -------------------------------------------------------
-    // 6. Ferdig
-    // -------------------------------------------------------
-    return res.status(200).json({
-      ok: true,
-      filename,
-      uke,
-      kanal: kanalRaw,
-      rader: jsonRows.length
-    });
-
-  } catch (err) {
-    console.error("Import error:", err);
-    return res.status(500).json({ ok: false, error: err.message });
-  }
-}
+</body>
+</html>
