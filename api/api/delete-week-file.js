@@ -2,10 +2,6 @@ const { BlobServiceClient, StorageSharedKeyCredential } = require("@azure/storag
 
 module.exports = async (req, res) => {
   try {
-    if (req.method !== "DELETE") {
-      return res.status(405).json({ ok: false, error: "Only DELETE allowed" });
-    }
-
     const filename = req.query.filename;
 
     if (!filename) {
@@ -45,3 +41,4 @@ module.exports = async (req, res) => {
     return res.status(500).json({ ok: false, error: err.message });
   }
 };
+
