@@ -8,10 +8,10 @@ module.exports = async (req, res) => {
       return res.status(400).json({ ok: false, error: "Missing filename" });
     }
 
-    // Azure credentials
+    // Bruk samme container som import-API-et
     const account = process.env.AZURE_STORAGE_ACCOUNT_NAME;
     const accountKey = process.env.AZURE_STORAGE_ACCOUNT_KEY;
-    const containerName = process.env.AZURE_STORAGE_CONTAINER;
+    const containerName = "weeks"; // <- TVING dette til riktig container
 
     const sharedKeyCredential = new StorageSharedKeyCredential(account, accountKey);
     const blobServiceClient = new BlobServiceClient(
@@ -22,13 +22,11 @@ module.exports = async (req, res) => {
     const containerClient = blobServiceClient.getContainerClient(containerName);
     const blobClient = containerClient.getBlockBlobClient(filename);
 
-    // Check if file exists
     const exists = await blobClient.exists();
     if (!exists) {
       return res.status(404).json({ ok: false, error: "File not found" });
     }
 
-    // Delete file
     await blobClient.delete();
 
     return res.status(200).json({
@@ -41,4 +39,3 @@ module.exports = async (req, res) => {
     return res.status(500).json({ ok: false, error: err.message });
   }
 };
-
