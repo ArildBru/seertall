@@ -37,6 +37,28 @@ module.exports = async (req, res) => {
       const sheet = workbook.Sheets[workbook.SheetNames[0]];
       const rows = xlsx.utils.sheet_to_json(sheet);
 
+      if (!rows || rows.length === 0) {
+        res.status(400).json({ ok: false, error: "Empty Excel file" });
+        return;
+      }
+
+      // Finn kanalnavn
+      const kanalRaw =
+        rows[0].Mediehus ||
+        rows[0].mediehus ||
+        rows[0].Kanal ||
+        rows[0].kanal;
+
+      if (!kanalRaw) {
+        return res.status(400).json({ ok: false, error: "Could not detect channel in Excel" });
+      }
+
+      // Normaliser kanalnavn
+      const kanal = kanalRaw.toLowerCase().replace(/\s+/g, "");
+
+      // Lag filnavn som ikke overskriver
+      const blobName = `uke-${week}-${kanal}.json`;
+
       // Azure Blob Storage-klient
       const account = process.env.AZURE_STORAGE_ACCOUNT_NAME;
       const accountKey = process.env.AZURE_STORAGE_ACCOUNT_KEY;
@@ -48,16 +70,13 @@ module.exports = async (req, res) => {
         sharedKeyCredential
       );
 
-      // Sørg for at containeren finnes
       const containerClient = blobServiceClient.getContainerClient(containerName);
       await containerClient.createIfNotExists();
 
-      // Blob-navn
-      const blobName = `uke-${week}.json`;
-      const blockBlobClient = containerClient.getBlockBlobClient(blobName);
-
       // Last opp JSON
       const jsonData = JSON.stringify(rows, null, 2);
+      const blockBlobClient = containerClient.getBlockBlobClient(blobName);
+
       await blockBlobClient.upload(jsonData, Buffer.byteLength(jsonData), {
         blobHTTPHeaders: { blobContentType: "application/json" },
       });
@@ -65,6 +84,8 @@ module.exports = async (req, res) => {
       res.status(200).json({
         ok: true,
         week,
+        kanal: kanalRaw,
+        filename: blobName,
         rows: rows.length,
       });
     } catch (error) {
