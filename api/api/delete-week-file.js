@@ -8,10 +8,9 @@ module.exports = async (req, res) => {
       return res.status(400).json({ ok: false, error: "Missing filename" });
     }
 
-    // Bruk samme container som import-API-et
     const account = process.env.AZURE_STORAGE_ACCOUNT_NAME;
     const accountKey = process.env.AZURE_STORAGE_ACCOUNT_KEY;
-    const containerName = "weeks"; // <- TVING dette til riktig container
+    const containerName = "weeks";
 
     const sharedKeyCredential = new StorageSharedKeyCredential(account, accountKey);
     const blobServiceClient = new BlobServiceClient(
