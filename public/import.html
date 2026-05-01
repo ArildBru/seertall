@@ -1,149 +1,83 @@
-<!DOCTYPE html>
-<html lang="no">
-<head>
-  <meta charset="UTF-8" />
-  <title>Importer uke-fil</title>
+import { BlobServiceClient } from "@azure/storage-blob";
+import * as XLSX from "xlsx";
 
-  <style>
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      padding: 40px;
-      max-width: 700px;
-      margin: 0 auto;
-      color: #222;
-      background: #fafafa;
+export default async function handler(req, res) {
+  try {
+    if (req.method !== "POST") {
+      return res.status(405).json({ ok: false, error: "Method not allowed" });
     }
 
-    h2 {
-      font-size: 28px;
-      margin-bottom: 20px;
-      font-weight: 600;
+    const { uke } = req.body;
+    const file = req.body.file; // base64 fra frontend
+
+    if (!uke || !file) {
+      return res.status(400).json({ ok: false, error: "Missing week or file" });
     }
 
-    label {
-      font-size: 16px;
-      font-weight: 500;
-      display: block;
-      margin-top: 20px;
+    // -------------------------------------------------------
+    // 1. Les Excel
+    // -------------------------------------------------------
+    const buffer = Buffer.from(file, "base64");
+    const workbook = XLSX.read(buffer, { type: "buffer" });
+    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(sheet);
+
+    if (!rows || rows.length === 0) {
+      return res.status(400).json({ ok: false, error: "Empty Excel file" });
     }
 
-    .week-input {
-      width: 140px;
-      padding: 12px;
-      font-size: 20px;
-      border-radius: 8px;
-      border: 1px solid #ccc;
-      margin-top: 10px;
-      background: white;
+    // -------------------------------------------------------
+    // 2. Finn kanalnavn fra Excel
+    // -------------------------------------------------------
+    const kanalRaw = rows[0].Mediehus || rows[0].mediehus || rows[0].Kanal || rows[0].kanal;
+
+    if (!kanalRaw) {
+      return res.status(400).json({ ok: false, error: "Could not detect channel in Excel" });
     }
 
-    input[type="file"] {
-      margin-top: 12px;
-      font-size: 16px;
-    }
+    // Normaliser kanalnavn
+    const kanal = kanalRaw.toLowerCase().replace(/\s+/g, "");
 
-    button {
-      margin-top: 24px;
-      padding: 12px 22px;
-      font-size: 16px;
-      border: none;
-      border-radius: 8px;
-      background: #1a73e8;
-      color: white;
-      cursor: pointer;
-      font-weight: 500;
-    }
+    // -------------------------------------------------------
+    // 3. Konverter Excel-rader til vårt JSON-format
+    // -------------------------------------------------------
+    const jsonRows = rows.map((r) => ({
+      program: r.Tittel || r.tittel || "",
+      episode: Number(r.Episode || r.episode || 0),
+      uke: Number(uke),
+      lineart: Number(r.Lineært || r["Lineært"] || r.Lineart || r.lineart || 0),
+      vod: Number(r.VOD || r.vod || 0),
+      total: Number(r.Totalt || r.totalt || 0),
+      kanal: kanalRaw
+    }));
 
-    button:disabled {
-      background: #9bb9e5;
-      cursor: default;
-    }
+    // -------------------------------------------------------
+    // 4. Lag filnavn som aldri overskriver
+    // -------------------------------------------------------
+    const filename = `uke-${uke}-${kanal}.json`;
 
-    #result {
-      margin-top: 30px;
-      padding: 20px;
-      background: #f2f2f2;
-      border-radius: 10px;
-      font-size: 18px;
-      line-height: 1.5;
-      white-space: pre-wrap;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.05);
-    }
+    // -------------------------------------------------------
+    // 5. Lagre i Azure Blob Storage
+    // -------------------------------------------------------
+    const blobService = BlobServiceClient.fromConnectionString(process.env.AZURE_STORAGE_CONNECTION_STRING);
+    const container = blobService.getContainerClient("weeks");
+    const blob = container.getBlockBlobClient(filename);
 
-    #loading {
-      margin-top: 20px;
-      font-style: italic;
-      font-size: 16px;
-      color: #555;
-    }
+    await blob.upload(JSON.stringify({ ok: true, filename, rows: jsonRows }, null, 2), Buffer.byteLength(JSON.stringify(jsonRows)));
 
-    @media (max-width: 600px) {
-      body { padding: 20px; }
-      button { width: 100%; }
-      .week-input { width: 100%; }
-    }
-  </style>
-</head>
+    // -------------------------------------------------------
+    // 6. Ferdig
+    // -------------------------------------------------------
+    return res.status(200).json({
+      ok: true,
+      filename,
+      uke,
+      kanal: kanalRaw,
+      rader: jsonRows.length
+    });
 
-<body>
-
-<h2>Importer uke-fil</h2>
-
-<label for="week">Uke:</label>
-<input type="text" id="week" placeholder="f.eks 16" class="week-input" />
-
-<label for="file">Velg Excel-fil:</label>
-<input type="file" id="file" accept=".xlsx" />
-
-<button id="uploadBtn" onclick="uploadFile()">Last opp</button>
-
-<div id="loading"></div>
-<div id="result"></div>
-
-<script>
-async function uploadFile() {
-  const week = document.getElementById("week").value.trim();
-  const fileInput = document.getElementById("file");
-  const file = fileInput.files[0];
-
-  if (!week) {
-    document.getElementById("result").innerText = "Skriv inn ukenummer.";
-    return;
-  }
-
-  if (!file) {
-    document.getElementById("result").innerText = "Velg en fil først.";
-    return;
-  }
-
-  const button = document.getElementById("uploadBtn");
-  button.disabled = true;
-
-  document.getElementById("result").innerText = "";
-  document.getElementById("loading").innerText = "Laster opp…";
-
-  const formData = new FormData();
-  formData.append("file", file);
-  formData.append("week", week);
-
-  const response = await fetch("/api/import-week-file", {
-    method: "POST",
-    body: formData
-  });
-
-  const result = await response.json();
-
-  document.getElementById("loading").innerText = "";
-  button.disabled = false;
-
-  if (result.ok) {
-    document.getElementById("result").innerText =
-      `Filen ble importert.\n\nUke: ${result.week}\nRader: ${result.rows}`;
-  } else {
-    document.getElementById("result").innerText = "Feil: " + result.error;
+  } catch (err) {
+    console.error("Import error:", err);
+    return res.status(500).json({ ok: false, error: err.message });
   }
 }
-</script>
-
-</body>
-</html>
