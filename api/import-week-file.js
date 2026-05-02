@@ -27,15 +27,15 @@ module.exports = async (req, res) => {
     // --- 2. Lag riktig filnavn ---
     const filename = `uke-${week}-${kanal}.json`;
 
-    // --- 3. Konverter rader ---
+    // --- 3. Standardiser rader ---
     const jsonRows = rows.map((r) => ({
       uke: Number(week),
       kanal: kanal,
       program: r.Tittel || r.tittel || "",
       episode: Number(r.Episode || r.episode || 0),
+      total: Number(r.Totalt || r.totalt || 0),
       lineart: Number(r.Lineært || r.lineart || 0),
-      vod: Number(r.VOD || r.vod || 0),
-      total: Number(r.Totalt || r.totalt || 0)
+      vod: Number(r.VOD || r.vod || 0)
     }));
 
     // --- 4. Lagre til Azure Blob Storage ---
@@ -52,7 +52,11 @@ module.exports = async (req, res) => {
     const containerClient = blobServiceClient.getContainerClient(containerName);
     const blobClient = containerClient.getBlockBlobClient(filename);
 
-    await blobClient.upload(JSON.stringify({ filename, rows: jsonRows }, null, 2), Buffer.byteLength(JSON.stringify({ filename, rows: jsonRows })));
+    const body = JSON.stringify({ filename, rows: jsonRows }, null, 2);
+
+    await blobClient.upload(body, Buffer.byteLength(body), {
+      blobHTTPHeaders: { blobContentType: "application/json" }
+    });
 
     return res.status(200).json({
       ok: true,
