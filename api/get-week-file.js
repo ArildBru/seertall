@@ -2,16 +2,15 @@ const { BlobServiceClient, StorageSharedKeyCredential } = require("@azure/storag
 
 module.exports = async (req, res) => {
   try {
-    const filename = req.query.filename;
+    const { filename } = req.query;
 
     if (!filename) {
-      res.status(400).json({ ok: false, error: "Missing filename" });
-      return;
+      return res.status(400).json({ ok: false, error: "Missing filename" });
     }
 
     const account = process.env.AZURE_STORAGE_ACCOUNT_NAME;
     const accountKey = process.env.AZURE_STORAGE_ACCOUNT_KEY;
-    const containerName = process.env.AZURE_STORAGE_CONTAINER;
+    const containerName = "weeks";
 
     const sharedKeyCredential = new StorageSharedKeyCredential(account, accountKey);
     const blobServiceClient = new BlobServiceClient(
@@ -27,10 +26,16 @@ module.exports = async (req, res) => {
     const buffer = await streamToBuffer(download.readableStreamBody);
     const json = JSON.parse(buffer.toString());
 
-    res.status(200).json({ ok: true, filename, rows: json });
+    // Returner KUN radene
+    return res.status(200).json({
+      ok: true,
+      filename,
+      rows: json.rows || []
+    });
+
   } catch (error) {
     console.error("Get error:", error);
-    res.status(500).json({ ok: false, error: error.message });
+    return res.status(500).json({ ok: false, error: error.message });
   }
 };
 
