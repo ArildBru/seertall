@@ -105,7 +105,10 @@
           continue;
         }
 
-        all.push(...json.rows);
+        if (Array.isArray(json.rows)) {
+    all.push(...json.rows);
+}
+
         loaded++;
 
       } catch (err) {
