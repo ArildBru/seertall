@@ -12,19 +12,30 @@ module.exports = async (req, res) => {
 
     const { question, rows } = req.body;
 
-    if (!question || !rows || !Array.isArray(rows)) {
-      return res.status(400).json({ ok: false, error: "Missing question or rows" });
+    // --- 1. Valider input ---
+    if (!question) {
+      return res.status(200).json({
+        ok: true,
+        answer: "Du må skrive et spørsmål."
+      });
     }
 
-    // --- 1. Komprimer datasettet ---
-    const compactRows = rows.map(r => ({
+    if (!rows || !Array.isArray(rows) || rows.length === 0) {
+      return res.status(200).json({
+        ok: true,
+        answer: "Datasettet inneholder ingen rader. Last opp ukedata først."
+      });
+    }
+
+    // --- 2. Komprimer datasettet ---
+    const compact = rows.map(r => ({
       uke: r.uke,
       kanal: r.kanal,
       program: r.program,
-      episode: r.episode,
       total: r.total
     }));
 
+    // --- 3. Systemprompt ---
     const systemPrompt = `
 Du er en ekstremt nøyaktig analytiker av norske TV-seertall.
 Du skal KUN bruke dataene i 'rows'. Ikke gjett. Ikke anta.
@@ -32,30 +43,41 @@ Du skal KUN bruke dataene i 'rows'. Ikke gjett. Ikke anta.
 Regler:
 - Filtrer på uke hvis brukeren nevner det.
 - Filtrer på kanal hvis brukeren nevner det.
-- Programnavn må matche (case-insensitive substring).
+- Programnavn matches med case-insensitive substring.
 - Sorter etter 'total' når brukeren spør om mest sett.
 - Hvis ingen rader matcher: si det tydelig.
 - Svar kort og presist, på norsk.
 `;
 
+    // --- 4. Brukerprompt ---
     const userPrompt = `
 Spørsmål: "${question}"
 
-Rader (komprimert):
-${JSON.stringify(compactRows)}
+Rader:
+${JSON.stringify(compact)}
 `;
 
-    const completion = await client.chat.completions.create({
-      model: "gpt-4.1",
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userPrompt }
-      ],
-      temperature: 0.1,
-      max_tokens: 300
-    });
+    // --- 5. OpenAI-kall ---
+    let completion;
+    try {
+      completion = await client.chat.completions.create({
+        model: "gpt-4.1",
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userPrompt }
+        ],
+        temperature: 0.1,
+        max_tokens: 300
+      });
+    } catch (err) {
+      console.error("OPENAI FEIL:", err);
+      return res.status(200).json({
+        ok: true,
+        answer: "AI-kallet feilet: " + err.message
+      });
+    }
 
-    const answer = completion.choices[0].message.content;
+    const answer = completion.choices?.[0]?.message?.content || "Ingen respons fra AI.";
 
     return res.status(200).json({
       ok: true,
@@ -63,10 +85,10 @@ ${JSON.stringify(compactRows)}
     });
 
   } catch (err) {
-    console.error("AI ERROR:", err);
-    return res.status(500).json({
-      ok: false,
-      error: "AI-kallet feilet. Sjekk server-logg."
+    console.error("SERVER FEIL:", err);
+    return res.status(200).json({
+      ok: true,
+      answer: "Serverfeil: " + err.message
     });
   }
 };
