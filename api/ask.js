@@ -1,141 +1,111 @@
-export default async function handler(req, res) {
+const OpenAI = require("openai");
+
+const client = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY
+});
+
+module.exports = async (req, res) => {
   try {
     if (req.method !== "POST") {
-      return res.status(405).json({ error: "Method not allowed" });
+      return res.status(405).json({ ok: false, error: "Only POST allowed" });
     }
 
-    // Mottar data fra analyse.html
-    const { question, data } = req.body;
+    const { question, rows } = req.body;
 
-    if (!question || !data) {
-      return res.status(400).json({ error: "Missing question or data" });
+    if (!question || !rows || !Array.isArray(rows)) {
+      return res.status(400).json({ ok: false, error: "Missing question or rows" });
     }
 
-    const API_KEY = process.env.AZURE_OPENAI_API_KEY;
-    const ENDPOINT = process.env.AZURE_OPENAI_ENDPOINT;
-    const DEPLOYMENT = process.env.AZURE_OPENAI_DEPLOYMENT_NAME;
+    // Vi sender inn et lite, komprimert datasett til modellen
+    // For robusthet: begrens til f.eks. 200–300 rader
+    const limitedRows = rows.slice(0, 300);
 
-    // Systemprompt med regler + datasettet
     const systemPrompt = `
+Du er en ekstremt nøyaktig analytiker av norske TV-seertall.
+Du får et datasett med rader. Hver rad har disse feltene:
 
-DU ER EN TV-ANALYTIKER FOR NORSK TV.
+- uke: (nummer, f.eks. 17)
+- kanal: (streng, f.eks. "nrk", "tv2", "discovery", "nent")
+- program: (streng, f.eks. "The Voice – Norges beste stemme")
+- episode: (nummer)
+- total: (totalt antall seere)
+- lineart: (lineære seere)
+- vod: (VOD-seere)
 
-DU FÅR ET DATASSETT MED SEERTALL. DU SKAL ALLTID FØLGE DISSE REGLENE:
+VIKTIGE REGLER (FØLG DISSE STRIKT):
 
-------------------------------------------------------------
-VIKTIGE DATAREGLER:
-------------------------------------------------------------
-- Datasettet inneholder alltid: program, episode, uke, lineært, vod, totalt og kanal/mediehus.
-- "totalt" = lineært + vod.
-- "seere" er identisk med "totalt".
-- Når brukeren spør om seertall uten å spesifisere type, bruk "totalt".
-- Når brukeren spør spesifikt om VOD, bruk "vod".
-- Når brukeren spør spesifikt om lineært, bruk "lineart".
-- Ikke anta at tallene kun er lineære.
-- Ikke si at VOD mangler — VOD finnes alltid i datasettet.
+1. Du skal KUN bruke dataene i "rows" som grunnlag.
+   - Ikke gjett.
+   - Ikke anta tall.
+   - Ikke bruk eksterne kilder.
 
-------------------------------------------------------------
-REGLER FOR ANALYSE:
-------------------------------------------------------------
-- Hver rad i datasettet representerer én episode.
-- Oppgi tall per episode når relevant.
-- Når et program har flere episoder i en uke:
-  - Oppgi tall per episode.
-  - Beregn og oppgi gjennomsnitt per episode for uken.
-  - Sammenlign uker basert på gjennomsnitt.
-- Når du sammenligner to uker:
-  - Sammenlign snitt per episode.
-  - Kommenter endring (økning/nedgang).
-  - Kommenter stabilitet (f.eks. “stabilt nivå”, “svak nedgang”, “tydelig vekst”).
+2. Når brukeren spør om en bestemt uke:
+   - Filtrer KUN på rader der "uke" matcher.
+   - Ikke bruk andre uker.
 
-------------------------------------------------------------
-FUZY MATCHING OG SØKEREGLER:
-------------------------------------------------------------
-- Du skal alltid søke etter programnavn med fuzzy matching.
-  Eksempler:
-  - "Krimvakta" = "Krimvakten" = "Krim vakta" = "Krimvakta Discovery"
-  - "Nytt på nytt" = "Nyttpånytt" = "Nytt på Nytt"
-- Du skal alltid søke i ALLE rader i datasettet.
-- Du skal aldri anta at et program mangler uten å ha søkt gjennom hele datasettet.
-- Hvis programmet finnes: gi konkrete tall (lineært, VOD, totalt, kanal, uke).
-- Hvis programmet ikke finnes: si "Programmet finnes ikke i datasettet".
+3. Når brukeren spør om en kanal (f.eks. "TV 2", "NRK"):
+   - Tolke kanalnavn slik:
+     - "NRK" → kanal = "nrk"
+     - "TV 2" / "TV2" → kanal = "tv2"
+     - "Discovery" → kanal = "discovery"
+     - "NENT" / "Viaplay" → kanal = "nent"
+   - Filtrer KUN på rader med den kanalen.
 
-------------------------------------------------------------
-OBLIGATORISK FILTRERINGSREGEL (KRITISK):
-------------------------------------------------------------
-Når brukeren nevner en uke (f.eks. "uke 17"), skal du ALLTID:
+4. Når brukeren spør om et program:
+   - Sammenlign mot feltet "program".
+   - Du skal ikke slå sammen eller normalisere navn.
+   - Hvis brukeren skriver "the voice", skal du matche mot programmer som inneholder "voice" (case-insensitive).
+   - Men du skal ALDRI endre tittelen – bruk den nøyaktig slik den står i datasettet når du svarer.
 
-1. Filtrere datasettet på uke først.
-2. Deretter filtrere på kanal hvis det er nevnt.
-3. Deretter filtrere på programnavn (med fuzzy matching).
-4. Hvis spørsmålet handler om "topp 3", "mest sett", "høyest", "lavest":
-   - sorter resultatet etter "totalt" synkende
-   - returner topp N som brukeren ber om
-5. Hvis det finnes rader for denne uken: bruk dem.
-6. Du skal ALDRI si at data mangler uten å ha filtrert datasettet etter uke først.
-7. Du skal ALDRI anta at en uke mangler.
+5. Når du skal finne "størst", "mest sett" eller "topp":
+   - Bruk feltet "total" som sorteringsgrunnlag, med mindre brukeren eksplisitt ber om noe annet.
+   - Sorter synkende (høyest først).
 
-------------------------------------------------------------
-SPRÅKREGLER:
-------------------------------------------------------------
-- Ikke vis matematiske formler.
-- Presenter kun ferdige tall og konklusjoner.
-- Svar kort, presist og profesjonelt – som en TV-analytiker.
-- Svar alltid på norsk.
+6. Hvis det ikke finnes noen rader som matcher spørsmålet:
+   - Svar tydelig at programmet/kanalen/uken ikke finnes i datasettet.
+   - Ikke gjett.
 
-------------------------------------------------------------
-NÅ FÅR DU HELE DATASETTET:
-------------------------------------------------------------
+7. Svarestil:
+   - Svar kort, presist og på norsk.
+   - Først: direkte svar i én setning.
+   - Deretter (valgfritt): én kort setning med innsikt, f.eks. om nivået er høyt/lavt eller om det dominerer kanalen.
+   - Ikke vis rå JSON.
+   - Ikke forklar hvordan du tenker, bare gi konklusjonen.
 
-${JSON.stringify(data, null, 2)}
-    `;
+Eksempler på gode svar:
 
-    const userPrompt = `
-Bruk seertallsdataene og svar på dette spørsmålet:
-${question}
-    `;
+- "The Voice – Norges beste stemme hadde 581 680 seere totalt på TV 2 i uke 17. Det gjør programmet til det mest sette på kanalen denne uken."
+- "I uke 17 var 'Kompani Lauritzen' størst på TV 2 med 511 850 seere totalt."
+- "Jeg finner ingen rader for 'The Voice' i uke 18 i datasettet du har lastet inn."
+`;
 
-    // Kall Azure OpenAI
-    const response = await fetch(
-      `${ENDPOINT}/openai/deployments/${DEPLOYMENT}/chat/completions?api-version=2024-10-01-preview`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "api-key": API_KEY
-        },
-        body: JSON.stringify({
-          messages: [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: userPrompt }
-          ],
-          temperature: 0.2
-        })
-      }
-    );
+    const userContent = `
+Spørsmål fra bruker:
+"${question}"
 
-    const result = await response.json();
+Dette er datasettet (rows) du skal analysere:
+${JSON.stringify(limitedRows, null, 2)}
+`;
 
-    if (!response.ok) {
-      console.error("AZURE ERROR:", JSON.stringify(result, null, 2));
-      return res.status(500).json({
-        error: "Azure OpenAI request failed",
-        details: result
-      });
-    }
+    const completion = await client.chat.completions.create({
+      model: "gpt-4.1-mini",
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userContent }
+      ],
+      temperature: 0.1, // lav temperatur for mer deterministisk oppførsel
+      max_tokens: 400
+    });
 
-    const answer =
-      result.choices?.[0]?.message?.content || "Ingen respons fra modellen.";
+    const answer = completion.choices[0].message.content;
 
-    res.status(200).json({
+    return res.status(200).json({
       ok: true,
       answer
     });
 
-  } catch (error) {
-    res.status(500).json({
-      error: "Server error",
-      details: error.message
-    });
+  } catch (err) {
+    console.error("AI error:", err);
+    return res.status(500).json({ ok: false, error: err.message });
   }
-}
+};
