@@ -5,8 +5,11 @@ const client = new OpenAI({
 });
 
 module.exports = async (req, res) => {
+  console.log("ASK API STARTER"); // ← viktig logging
+
   try {
     if (req.method !== "POST") {
+      console.log("FEIL: Ikke POST");
       return res.status(405).json({ ok: false, error: "Only POST allowed" });
     }
 
@@ -14,6 +17,7 @@ module.exports = async (req, res) => {
 
     // --- 1. Valider input ---
     if (!question) {
+      console.log("FEIL: Mangler spørsmål");
       return res.status(200).json({
         ok: true,
         answer: "Du må skrive et spørsmål."
@@ -21,6 +25,7 @@ module.exports = async (req, res) => {
     }
 
     if (!rows || !Array.isArray(rows) || rows.length === 0) {
+      console.log("FEIL: Ingen rader mottatt");
       return res.status(200).json({
         ok: true,
         answer: "Datasettet inneholder ingen rader. Last opp ukedata først."
@@ -60,6 +65,8 @@ ${JSON.stringify(compact)}
     // --- 5. OpenAI-kall ---
     let completion;
     try {
+      console.log("KALLER OPENAI…");
+
       completion = await client.chat.completions.create({
         model: "gpt-4.1",
         messages: [
@@ -69,6 +76,9 @@ ${JSON.stringify(compact)}
         temperature: 0.1,
         max_tokens: 300
       });
+
+      console.log("OPENAI SVARTE");
+
     } catch (err) {
       console.error("OPENAI FEIL:", err);
       return res.status(200).json({
@@ -78,6 +88,8 @@ ${JSON.stringify(compact)}
     }
 
     const answer = completion.choices?.[0]?.message?.content || "Ingen respons fra AI.";
+
+    console.log("ASK API FULLFØRT"); // ← viktig logging
 
     return res.status(200).json({
       ok: true,
