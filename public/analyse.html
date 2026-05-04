@@ -2,65 +2,51 @@
 <html lang="no">
 <head>
   <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Analyse – Seertall</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+
   <style>
     body {
       font-family: system-ui, sans-serif;
       margin: 0;
       padding: 20px;
-      background: #f7f7f7;
-      color: #222;
+      background: #f5f5f5;
     }
 
     h1 {
       margin-top: 0;
-      font-size: 28px;
-      font-weight: 600;
     }
 
     .card {
       background: white;
       padding: 20px;
-      border-radius: 12px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+      border-radius: 10px;
       margin-bottom: 20px;
-    }
-
-    textarea, button {
-      width: 100%;
-      padding: 12px;
-      margin-top: 10px;
-      border-radius: 8px;
-      border: 1px solid #ccc;
-      font-size: 16px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.08);
     }
 
     button {
-      background: #0070f3;
+      background: #0078ff;
       color: white;
       border: none;
+      padding: 12px 20px;
+      border-radius: 6px;
       cursor: pointer;
-      font-weight: 600;
+      font-size: 16px;
     }
 
-    button:hover {
-      background: #0059c9;
+    button:disabled {
+      background: #9bbcf5;
+      cursor: not-allowed;
     }
 
-    pre {
-  background: #eee;
-  padding: 16px;
-  border-radius: 8px;
-  overflow-y: auto;
-  max-height: 400px;
-  line-height: 1.5;
-  font-size: 15px;
-  width: 100%;
-  max-width: 700px; /* gjør den smalere */
-  white-space: pre-wrap; /* bryter linjer */
-}
-
+    #aiAnswer {
+      white-space: pre-wrap;
+      margin-top: 15px;
+      padding: 15px;
+      background: #eee;
+      border-radius: 8px;
+    }
   </style>
 </head>
 
@@ -70,84 +56,98 @@
 
   <div class="card">
     <h2>AI-spørsmål</h2>
-    <p id="status">Laster inn alle ukedata…</p>
-    <textarea id="question" placeholder="Still et spørsmål om seertallene…"></textarea>
-    <button id="askBtn" disabled onclick="askAI()">Spør AI</button>
-    <pre id="aiAnswer"></pre>
+    <p id="loadStatus">Laster data…</p>
+
+    <input id="questionInput" type="text" placeholder="Skriv et spørsmål…" style="width:100%; padding:10px; margin-bottom:10px;">
+
+    <button id="askBtn" disabled>Spør AI</button>
+
+    <div id="aiAnswer"></div>
   </div>
 
-<script>
-  window.allData = [];
+  <script>
+    let allData = [];
 
-  async function loadAllData() {
-  try {
-    const res = await fetch("/api/list-week-files");
-    const data = await res.json();
-
-    const files = data.files;
-    const all = [];
-    let loaded = 0;
-    let failed = 0;
-
-    for (const filename of files) {
+    async function loadAllFiles() {
       try {
-        const resWeek = await fetch(`/api/get-week-file?filename=${filename}`);
+        const listRes = await fetch("/api/list-week-files");
+        const listJson = await listRes.json();
 
-        if (!resWeek.ok) {
-          failed++;
-          continue;
+        if (!listJson.ok) {
+          document.getElementById("loadStatus").innerText = "Kunne ikke hente fil-liste.";
+          return;
         }
 
-        const json = await resWeek.json();
+        const files = listJson.files || [];
+        let loaded = 0;
+        let failed = 0;
 
-        if (!json.rows || !Array.isArray(json.rows)) {
-          failed++;
-          continue;
+        for (const f of files) {
+          try {
+            const r = await fetch("/api/get-week-file?filename=" + f);
+            const j = await r.json();
+
+            if (j.ok && Array.isArray(j.rows)) {
+              allData.push(...j.rows);
+              loaded++;
+            } else {
+              console.warn("Fil mangler rows:", f, j);
+              failed++;
+            }
+          } catch (err) {
+            console.error("Feil ved lasting av fil:", f, err);
+            failed++;
+          }
         }
 
-        if (Array.isArray(json.rows)) {
-    all.push(...json.rows);
-}
+        document.getElementById("loadStatus").innerText =
+          `Lastet ${loaded} filer (${failed} feilet). Totalt ${allData.length} rader.`;
 
-        loaded++;
+        document.getElementById("askBtn").disabled = false;
 
       } catch (err) {
-        failed++;
+        console.error("Kritisk feil:", err);
+        document.getElementById("loadStatus").innerText = "Kritisk feil ved lasting av data.";
       }
     }
 
-    window.allData = all;
+    loadAllFiles();
 
-    document.getElementById("status").textContent =
-      `Lastet ${loaded} filer (${failed} feilet). Totalt ${all.length} rader.`;
+    document.getElementById("askBtn").addEventListener("click", async () => {
+      const q = document.getElementById("questionInput").value.trim();
+      const out = document.getElementById("aiAnswer");
 
-    document.getElementById("askBtn").disabled = false;
+      if (!q) {
+        out.innerText = "Skriv et spørsmål.";
+        return;
+      }
 
-  } catch (err) {
-    document.getElementById("status").textContent =
-      "Kritisk feil ved lasting av data.";
-  }
-}
+      out.innerText = "AI tenker…";
 
+      console.log("Sender til AI:", q, allData);
 
-  async function askAI() {
-    const question = document.getElementById("question").value;
+      try {
+        const res = await fetch("/api/ask", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ question: q, rows: allData })
+        });
 
-    const res = await fetch("/api/ask", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        question,
-        data: window.allData
-      })
+        const json = await res.json();
+        console.log("Svar fra API:", json);
+
+        if (json.ok) {
+          out.innerText = json.answer;
+        } else {
+          out.innerText = "Feil: " + json.error;
+        }
+
+      } catch (err) {
+        console.error("Fetch-feil:", err);
+        out.innerText = "Klarte ikke å kontakte AI.";
+      }
     });
-
-    const data = await res.json();
-    document.getElementById("aiAnswer").textContent = data.answer;
-  }
-
-  loadAllData();
-</script>
+  </script>
 
 </body>
 </html>
