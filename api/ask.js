@@ -1,11 +1,11 @@
-const OpenAI = require("openai");
+import OpenAI from "openai";
 
 const client = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY
 });
 
-module.exports = async (req, res) => {
-  console.log("ASK API STARTER"); // ← viktig logging
+export default async function handler(req, res) {
+  console.log("ASK API STARTER");
 
   try {
     if (req.method !== "POST") {
@@ -15,13 +15,9 @@ module.exports = async (req, res) => {
 
     const { question, rows } = req.body;
 
-    // --- 1. Valider input ---
     if (!question) {
       console.log("FEIL: Mangler spørsmål");
-      return res.status(200).json({
-        ok: true,
-        answer: "Du må skrive et spørsmål."
-      });
+      return res.status(200).json({ ok: true, answer: "Du må skrive et spørsmål." });
     }
 
     if (!rows || !Array.isArray(rows) || rows.length === 0) {
@@ -32,7 +28,6 @@ module.exports = async (req, res) => {
       });
     }
 
-    // --- 2. Komprimer datasettet ---
     const compact = rows.map(r => ({
       uke: r.uke,
       kanal: r.kanal,
@@ -40,11 +35,9 @@ module.exports = async (req, res) => {
       total: r.total
     }));
 
-    // --- 3. Systemprompt ---
     const systemPrompt = `
 Du er en ekstremt nøyaktig analytiker av norske TV-seertall.
 Du skal KUN bruke dataene i 'rows'. Ikke gjett. Ikke anta.
-
 Regler:
 - Filtrer på uke hvis brukeren nevner det.
 - Filtrer på kanal hvis brukeren nevner det.
@@ -54,47 +47,31 @@ Regler:
 - Svar kort og presist, på norsk.
 `;
 
-    // --- 4. Brukerprompt ---
     const userPrompt = `
 Spørsmål: "${question}"
-
 Rader:
 ${JSON.stringify(compact)}
 `;
 
-    // --- 5. OpenAI-kall ---
-    let completion;
-    try {
-      console.log("KALLER OPENAI…");
+    console.log("KALLER OPENAI…");
 
-      completion = await client.chat.completions.create({
-        model: "gpt-4.1",
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userPrompt }
-        ],
-        temperature: 0.1,
-        max_tokens: 300
-      });
+    const completion = await client.chat.completions.create({
+      model: "gpt-4.1",
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt }
+      ],
+      temperature: 0.1,
+      max_tokens: 300
+    });
 
-      console.log("OPENAI SVARTE");
-
-    } catch (err) {
-      console.error("OPENAI FEIL:", err);
-      return res.status(200).json({
-        ok: true,
-        answer: "AI-kallet feilet: " + err.message
-      });
-    }
+    console.log("OPENAI SVARTE");
 
     const answer = completion.choices?.[0]?.message?.content || "Ingen respons fra AI.";
 
-    console.log("ASK API FULLFØRT"); // ← viktig logging
+    console.log("ASK API FULLFØRT");
 
-    return res.status(200).json({
-      ok: true,
-      answer
-    });
+    return res.status(200).json({ ok: true, answer });
 
   } catch (err) {
     console.error("SERVER FEIL:", err);
@@ -103,4 +80,4 @@ ${JSON.stringify(compact)}
       answer: "Serverfeil: " + err.message
     });
   }
-};
+}
